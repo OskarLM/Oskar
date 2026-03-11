@@ -433,33 +433,54 @@ window.onscroll = () => {
 };
 
 /* ==========================
-   CSV: EXPORTACIÓN (EU – coma decimal)
+   CSV: EXPORTACIÓN EN COLUMNAS (formato Excel)
 ========================== */
 const exportarCSV = () => {
   if (!movimientos || movimientos.length === 0) {
     alert("No hay datos para exportar.");
     return;
   }
-  let csv = "Fecha\tOrigen\tCategoria\tSubcategoria\tImporte\tDescripcion\n";
+
+  // Preparamos columnas
+  const colFecha = ["Fecha"];
+  const colOrigen = ["Origen"];
+  const colCategoria = ["Categoria"];
+  const colSubcategoria = ["Subcategoria"];
+  const colImporte = ["Importe"];
+  const colDescripcion = ["Descripcion"];
+
   movimientos.forEach(m => {
-    const [y, mo, d] = m.f.split("-");
+    const [y,mo,d] = m.f.split("-");
     const fechaES = `${d}/${mo}/${y}`;
-    const impStr  = m.imp.toString().replace(".", ",");
-    const desc    = (m.d || "").replace(/\"+/g, '"').trim();
-    csv += `${fechaES}\t${m.o}\t${m.c}\t${m.s}\t${impStr}\t${desc}\n`;
+    const impStr = m.imp.toString().replace(".", ",");
+    const desc = (m.d || "").replace(/\"+/g,'"');
+
+    colFecha.push(fechaES);
+    colOrigen.push(m.o);
+    colCategoria.push(m.c);
+    colSubcategoria.push(m.s);
+    colImporte.push(impStr);
+    colDescripcion.push(desc);
   });
 
+  // Convertimos cada columna en una línea CSV
+  const csv =
+    colFecha.join(";") + "\n" +
+    colOrigen.join(";") + "\n" +
+    colCategoria.join(";") + "\n" +
+    colSubcategoria.join(";") + "\n" +
+    colImporte.join(";") + "\n" +
+    colDescripcion.join(";");
+
+  // Descargar archivo
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "mis_gastos_export.csv";
-  document.body.appendChild(a);
+  a.download = "mis_gastos_columnas.csv";
   a.click();
-  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
-
 /* ==========================
    CSV: IMPORTACIÓN (detecta TAB/;/, y coma decimal)
 ========================== */
