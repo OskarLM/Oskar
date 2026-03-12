@@ -6,140 +6,62 @@
         content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>MIS GASTOS V0.0 BETA</title>
 
-  <!-- iOS meta -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-  <!-- PWA: color del tema + manifest (USAR RUTAS RELATIVAS) -->
+  <!-- PWA -->
   <meta name="theme-color" content="#d4af37" />
   <link rel="manifest" href="./manifest.json" />
 
-  <!-- Icono Apple (SVG inline) -->
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b0f1a'/><circle cx='50' cy='50' r='40' fill='none' stroke='%23d4af37' stroke-width='4'/><text x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='serif' font-weight='bold' font-size='35' fill='%23d4af37'>O%26J</text></svg>" />
+  <!-- iOS meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b0f1a'/><circle cx='50' cy='50' r='40' fill='none' stroke='%23d4af37' stroke-width='4'/><text x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='serif' font-weight='bold' font-size='35' fill='%23d4af37'>O%26J</text></svg>">
 
   <style>
-    :root {
-      --primary: #d4af37;
-      --success: #22c55e;
-      --danger: #ef4444;
-      --warning: #f97316;
-      --electric-blue: #00f2ff;
-      --bg: #0b0f1a;
-      --card-bg: rgba(30, 41, 59, 0.7);
-      --text: #f8fafc;
-      --gold-gradient: linear-gradient(45deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
-      --pink-metal: linear-gradient(45deg, #a00050, #ff1493, #ff85c1, #ff1493, #a00050);
-      --gold-metal: linear-gradient(45deg, #8a6d3b, #d4af37, #fcf6ba, #d4af37, #8a6d3b);
+    :root{
+      --primary:#d4af37;--success:#22c55e;--danger:#ef4444;--warning:#f97316;--electric-blue:#00f2ff;
+      --bg:#0b0f1a;--card-bg:rgba(30,41,59,.7);--text:#f8fafc;
+      --gold-gradient:linear-gradient(45deg,#bf953f,#fcf6ba,#b38728,#fbf5b7,#aa771c);
+      --pink-metal:linear-gradient(45deg,#a00050,#ff1493,#ff85c1,#ff1493,#a00050);
+      --gold-metal:linear-gradient(45deg,#8a6d3b,#d4af37,#fcf6ba,#d4af37,#8a6d3b)
     }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      margin: 0;
-      overflow-x: hidden;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .background-icon {
-      position: fixed; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 30vw; font-weight: 900;
-      background: var(--gold-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      opacity: 0.1; z-index: -1; pointer-events: none;
-    }
-    .topbar {
-      background: rgba(30, 41, 59, 0.95);
-      backdrop-filter: blur(10px);
-      padding: 20px; font-size: 15px; font-weight: 700;
-      text-align: center; border-bottom: 1px solid var(--primary);
-      color: var(--primary); position: sticky; top: 0; z-index: 1000;
-    }
-    .container { padding: 20px; position: relative; z-index: 1; }
-    .card {
-      background: var(--card-bg); padding: 16px; margin: 12px 0;
-      border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      position: relative; border-left: 5px solid var(--primary); backdrop-filter: blur(8px);
-    }
-    .card b { font-size: 14px; color: #fff; display: block; }
-    .card .meta { font-size: 11px; color: var(--primary); font-weight: bold; margin-bottom: 4px; }
-    .card .monto {
-      position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
-      font-size: 16px; font-weight: 800;
-    }
-
-    .filtros-wrapper {
-      display: grid !important;
-      grid-template-columns: repeat(6, 1fr) !important;
-      gap: 8px !important; background: var(--card-bg);
-      padding: 12px; border-radius: 20px; border: 1px solid rgba(212, 175, 55, 0.3);
-      margin-bottom: 20px;
-    }
+    body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);margin:0;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+    .background-icon{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:30vw;font-weight:900;background:var(--gold-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;opacity:.1;z-index:-1;pointer-events:none}
+    .topbar{background:rgba(30,41,59,.95);backdrop-filter:blur(10px);padding:20px;font-size:15px;font-weight:700;text-align:center;border-bottom:1px solid var(--primary);color:var(--primary);position:sticky;top:0;z-index:1000}
+    .container{padding:20px;position:relative;z-index:1}
+    .card{background:var(--card-bg);padding:16px;margin:12px 0;border-radius:16px;box-shadow:0 4px 15px rgba(0,0,0,.3);position:relative;border-left:5px solid var(--primary);backdrop-filter:blur(8px)}
+    .card b{font-size:14px;color:#fff;display:block}
+    .card .meta{font-size:11px;color:var(--primary);font-weight:700;margin-bottom:4px}
+    .card .monto{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:16px;font-weight:800}
+    .filtros-wrapper{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;background:var(--card-bg);padding:12px;border-radius:20px;border:1px solid rgba(212,175,55,.3);margin-bottom:20px}
     .filtros-wrapper .filtro-item:nth-child(1),
     .filtros-wrapper .filtro-item:nth-child(2),
-    .filtros-wrapper .filtro-item:nth-child(3) { grid-column: span 2 !important; }
+    .filtros-wrapper .filtro-item:nth-child(3){grid-column:span 2}
     .filtros-wrapper .filtro-item:nth-child(4),
-    .filtros-wrapper .filtro-item:nth-child(5) {
-      grid-column: span 3 !important; display: flex !important; flex-direction: column !important;
-    }
-
-    .footer-controles {
-      position: fixed; bottom: 0; left: 0; width: 100%;
-      background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(15px);
-      padding: 15px 20px 35px 20px; box-sizing: border-box;
-      border-top: 2px solid var(--primary); z-index: 1100; border-radius: 24px 24px 0 0;
-    }
-    .footer-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; }
-    .plus {
-      background: var(--gold-gradient); width: 65px; height: 65px; border-radius: 50%;
-      font-size: 35px; color: #000; display: flex; align-items: center; justify-content: center;
-      border: none; font-weight: bold; cursor: pointer;
-    }
-    #balance {
-      font-size: 24px; font-weight: 900; padding: 10px 15px; background: #000; border-radius: 14px;
-      border: 1px solid var(--primary); text-align: center; justify-self: end; min-width: 110px;
-    }
-
-    input, select, textarea {
-      width: 100%; padding: 12px; margin: 8px 0; font-size: 13px; border-radius: 12px;
-      border: 1px solid #334155; background: rgba(15, 23, 42, 0.9); color: white; box-sizing: border-box;
-    }
-    #form input, #form select, #form textarea { font-size: 22px !important; height: auto !important; padding: 14px !important; }
-
-    .btn-small {
-      padding: 10px; flex: 1; font-size: 10px; background: #222; color: var(--primary);
-      border-radius: 8px; border: 1px solid var(--primary); font-weight: bold;
-    }
-    .hidden { display: none !important; }
-
-    .popup-overlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center;
-      z-index: 9999; backdrop-filter: blur(15px);
-    }
-    .popup-content {
-      background: #1e293b; padding: 25px; border-radius: 24px; text-align: center;
-      width: 85%; max-width: 320px; border: 2px solid var(--primary);
-    }
-    .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
-    .btn-pin { background: rgba(255,255,255,0.05); border: 1px solid var(--primary); color: white; padding: 15px; border-radius: 12px; font-size: 20px; font-weight: bold; }
-    .pin-dots { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--primary); }
-    .dot.filled { background: var(--primary); }
-
-    .spinner {
-      width: 30px; height: 30px; border: 3px solid rgba(212,175,55,0.1);
-      border-left-color: var(--primary); border-radius: 50%;
-      animation: spin 1s linear infinite; margin: 10px auto;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .filtros-wrapper .filtro-item:nth-child(5){grid-column:span 3;display:flex;flex-direction:column}
+    .footer-controles{position:fixed;bottom:0;left:0;width:100%;background:rgba(15,23,42,.98);backdrop-filter:blur(15px);padding:15px 20px 35px;border-top:2px solid var(--primary);z-index:1100;border-radius:24px 24px 0 0;box-sizing:border-box}
+    .footer-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;width:100%}
+    .plus{background:var(--gold-gradient);width:65px;height:65px;border-radius:50%;font-size:35px;color:#000;display:flex;align-items:center;justify-content:center;border:none;font-weight:700;cursor:pointer}
+    #balance{font-size:24px;font-weight:900;padding:10px 15px;background:#000;border-radius:14px;border:1px solid var(--primary);text-align:center;justify-self:end;min-width:110px}
+    input,select,textarea{width:100%;padding:12px;margin:8px 0;font-size:13px;border-radius:12px;border:1px solid #334155;background:rgba(15,23,42,.9);color:#fff;box-sizing:border-box}
+    #form input,#form select,#form textarea{font-size:22px!important;height:auto!important;padding:14px!important}
+    .btn-small{padding:10px;flex:1;font-size:10px;background:#222;color:var(--primary);border-radius:8px;border:1px solid var(--primary);font-weight:700}
+    .hidden{display:none!important}
+    .popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.95);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(15px)}
+    .popup-content{background:#1e293b;padding:25px;border-radius:24px;text-align:center;width:85%;max-width:320px;border:2px solid var(--primary)}
+    .pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
+    .btn-pin{background:rgba(255,255,255,.05);border:1px solid var(--primary);color:#fff;padding:15px;border-radius:12px;font-size:20px;font-weight:700}
+    .pin-dots{display:flex;justify-content:center;gap:10px;margin-bottom:20px}
+    .dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--primary)}
+    .dot.filled{background:var(--primary)}
+    .spinner{width:30px;height:30px;border:3px solid rgba(212,175,55,.1);border-left-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite;margin:10px auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
   <!-- Overlay de acceso -->
   <div id="authOverlay" class="popup-overlay" role="dialog" aria-modal="true" aria-label="Acceso PIN">
     <div class="popup-content">
-      <h2 style="color:var(--primary); margin-bottom:10px;">ACCESO GOLD</h2>
+      <h2 style="color:var(--primary);margin-bottom:10px">ACCESO GOLD</h2>
       <div class="pin-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
       <div class="pin-grid">
         <button class="btn-pin" onclick="pressPin(1)" aria-label="1">1</button>
@@ -165,28 +87,28 @@
 
     <div class="container">
       <div class="filtros-wrapper">
-        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">AÑO</span><select id="filtroAño" onchange="resetPagina(); mostrar()"></select></div>
-        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">MES</span><select id="filtroMes" onchange="resetPagina(); mostrar()"></select></div>
-        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">ORI</span><select id="filtroOri" onchange="resetPagina(); mostrar()"></select></div>
-        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">CAT</span><select id="filtroCat" onchange="resetPagina(); mostrar()"></select></div>
-        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">SUBCAT</span><select id="filtroSub" onchange="resetPagina(); mostrar()"></select></div>
+        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">AÑO</span><select id="filtroAño" onchange="resetPagina();mostrar()"></select></div>
+        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">MES</span><select id="filtroMes" onchange="resetPagina();mostrar()"></select></div>
+        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">ORI</span><select id="filtroOri" onchange="resetPagina();mostrar()"></select></div>
+        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">CAT</span><select id="filtroCat" onchange="resetPagina();mostrar()"></select></div>
+        <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">SUBCAT</span><select id="filtroSub" onchange="resetPagina();mostrar()"></select></div>
       </div>
 
       <div id="lista" aria-live="polite"></div>
-      <div id="loader" style="display:none;"><div class="spinner"></div></div>
+      <div id="loader" style="display:none"><div class="spinner"></div></div>
       <div style="height:250px"></div>
     </div>
 
     <div class="footer-controles">
-      <div style="display:flex; gap:8px; margin-bottom: 20px;">
+      <div style="display:flex;gap:8px;margin-bottom:20px">
         <button class="btn-small" onclick="exportarCSV()">📊 EXPORTAR</button>
         <button class="btn-small" onclick="document.getElementById('inputFile').click()">📥 IMPORTAR</button>
-        <button class="btn-small" onclick="resetTotal()" style="background:#450a0a; color:var(--danger); border-color:var(--danger); flex:0.4;">⚠️ RESET</button>
+        <button class="btn-small" onclick="resetTotal()" style="background:#450a0a;color:var(--danger);border-color:var(--danger);flex:.4">⚠️ RESET</button>
         <input type="file" id="inputFile" class="hidden" onchange="importarCSV(event)" />
       </div>
 
       <div class="footer-row">
-        <button class="plus" onclick="abrirGraficos()" aria-label="Ver gráficos" style="width: 55px; height: 55px; background: var(--gold-metal); font-size: 20px;">
+        <button class="plus" onclick="abrirGraficos()" aria-label="Ver gráficos" style="width:55px;height:55px;background:var(--gold-metal);font-size:20px">
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="black" stroke-width="3">
             <line x1="18" y1="20" x2="18" y2="10"></line>
             <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -202,33 +124,33 @@
   <div id="form" class="hidden">
     <div class="topbar" id="tituloForm">NUEVO REGISTRO</div>
     <div class="container">
-      <div style="display:flex; gap:8px; margin-bottom: 8px;">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
         <select id="origen"></select>
-        <input type="date" id="fecha" style="width:45%;" onclick="this.showPicker()" />
+        <input type="date" id="fecha" style="width:45%" onclick="this.showPicker()" />
       </div>
 
       <input type="hidden" id="editId" />
 
-      <div style="display:flex; gap:8px; align-items:center;">
-        <select id="categoria" onchange="manejarNuevo(this, 'categoria')"></select>
-        <button onclick="borrarElemento('categoria')" style="width:70px; height:68px; border-radius:16px; background:var(--danger); border:none; color:white; font-size:24px;">🗑</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="categoria" onchange="manejarNuevo(this,'categoria')"></select>
+        <button onclick="borrarElemento('categoria')" style="width:70px;height:68px;border-radius:16px;background:var(--danger);border:none;color:#fff;font-size:24px">🗑</button>
       </div>
 
-      <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-        <select id="subcategoria" onchange="manejarNuevo(this, 'subcategoria')"></select>
-        <button onclick="borrarElemento('subcategoria')" style="width:70px; height:68px; border-radius:16px; background:var(--danger); border:none; color:white; font-size:24px;">🗑</button>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <select id="subcategoria" onchange="manejarNuevo(this,'subcategoria')"></select>
+        <button onclick="borrarElemento('subcategoria')" style="width:70px;height:68px;border-radius:16px;background:var(--danger);border:none;color:#fff;font-size:24px">🗑</button>
       </div>
 
-      <input id="importe" type="number" step="0.01" inputmode="decimal" placeholder="0.00 €" style="height:70px !important; font-weight:700;" />
-      <textarea id="descripcion" maxlength="200" placeholder="Nota..." style="min-height:100px;"></textarea>
+      <input id="importe" type="number" step="0.01" inputmode="decimal" placeholder="0.00 €" style="height:70px!important;font-weight:700" />
+      <textarea id="descripcion" maxlength="200" placeholder="Nota..." style="min-height:100px"></textarea>
 
-      <button onclick="guardar()" style="background:var(--gold-gradient); color:#000; height:70px; width:100%; font-size:22px; margin-top:10px; border:none; font-weight:bold; border-radius:16px;">GUARDAR</button>
+      <button onclick="guardar()" style="background:var(--gold-gradient);color:#000;height:70px;width:100%;font-size:22px;margin-top:10px;border:none;font-weight:700;border-radius:16px">GUARDAR</button>
 
       <div id="btnEliminarRegistro" class="hidden">
-        <button onclick="eliminarRegistroActual()" style="background:var(--danger); color:white; height:60px; width:100%; font-size:18px; margin-top:10px; border:none; font-weight:bold; border-radius:16px;">ELIMINAR</button>
+        <button onclick="eliminarRegistroActual()" style="background:var(--danger);color:#fff;height:60px;width:100%;font-size:18px;margin-top:10px;border:none;font-weight:700;border-radius:16px">ELIMINAR</button>
       </div>
 
-      <button onclick="volver()" style="background:transparent; color:#94a3b8; width:100%; margin-top:15px; border:none; font-size: 16px;">CANCELAR</button>
+      <button onclick="volver()" style="background:transparent;color:#94a3b8;width:100%;margin-top:15px;border:none;font-size:16px">CANCELAR</button>
     </div>
   </div>
 
@@ -247,19 +169,58 @@ const catBase = ["Casa","Caravana","Coche","Compras","Efectivo","Escolar","Garaj
       mesesLabel = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],
       origenBase = ["Ingreso","Gasto","Nómina"];
 
-// Reglas Nómina
-const NOMINA_CATS = ["Oskar", "Josune"];
+// Nómina
+const NOMINA_CATS = ["Oskar","Josune"];
 const NOMINA_SUBS = [...mesesLabel];
 
-let movimientos  = JSON.parse(localStorage.getItem('movimientos')) || [],
-    catExtra     = JSON.parse(localStorage.getItem('categoriaExtra')) || [],
-    subMaestra  = JSON.parse(localStorage.getItem('subMaestra_v2')) || subBase.slice(),
-    nBackup     = parseInt(localStorage.getItem('nBackup')) || 1,
+let movimientos   = JSON.parse(localStorage.getItem('movimientos')) || [],
+    catExtra      = JSON.parse(localStorage.getItem('categoriaExtra')) || [],
+    subMaestra    = JSON.parse(localStorage.getItem('subMaestra_v2')) || subBase.slice(),
+    nBackup       = parseInt(localStorage.getItem('nBackup')) || 1,
     registrosVisibles = 25,
     filtradosGlobal = [],
     pinActual = "";
 
-const PIN_OK = "7143"; // Nota: sigue en claro; ver seguridad avanzada si necesitas reforzarlo
+const PIN_OK = "7143";
+
+/* ==========================
+  UTILIDADES DE NORMALIZACIÓN (tildes, may/min, plural→singular)
+========================== */
+// normaliza clave canónica
+const normalizeKey = (s) => (s ?? "")
+  .toString().trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[^\p{L}\p{N}]+/gu,' ') // no alfanum → espacio
+  .replace(/\s+/g,' ').trim();
+
+// singularización muy simple para español
+const singularizeWordEs = (w) => {
+  if (w.endsWith('iones')) return w.slice(0,-5)+'ion';
+  if (w.endsWith('ces'))   return w.slice(0,-3)+'z';
+  if (w.endsWith('es'))    return w.slice(0,-2);
+  if (/[aeiou]s$/.test(w)) return w.slice(0,-1);
+  return w;
+};
+const canonicalizeLabel = (s) => {
+  const raw = normalizeKey(s);
+  return raw
+    .split(/([\/\-])/g) // conserva separadores / y -
+    .map(tok => (tok==='/'||tok==='-') ? tok :
+      tok.split(' ').map(singularizeWordEs).join(' '))
+    .join(' ')
+    .replace(/\s*\/\s*/g,'/').replace(/\s*-\s*/g,'-').trim();
+};
+const mostrarBonito = (s) => {
+  const t = (s ?? '').toString().trim();
+  if (!t) return t;
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+};
+const buildCanonIndex = (preferida=[], secundaria=[]) => {
+  const map = new Map();
+  const add = (v) => { const k = canonicalizeLabel(v); if (!map.has(k)) map.set(k, v); };
+  preferida.forEach(add); secundaria.forEach(add);
+  return map;
+};
 
 /* ==========================
   SEGURIDAD
@@ -273,7 +234,7 @@ const pressPin = (n) => {
   }
 };
 const clearPin  = () => { pinActual = ""; updateDots(); };
-const updateDots = () => document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('filled', i < pinActual.length));
+const updateDots = () => document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('filled', i < pinActual.length));
 const unlock    = () => {
   document.getElementById("authOverlay").style.display = "none";
   const m = document.getElementById("movimientos");
@@ -281,14 +242,13 @@ const unlock    = () => {
   m.dataset.permiso = "OK";
   init();
 };
-// Bypass para entorno local file: (mantener solo para desarrollo)
 const biometricAuth = async () => {
   if (window.isSecureContext || window.location.protocol === 'file:') unlock();
   else alert("Requiere HTTPS");
 };
 
 /* ==========================
-  MOTOR PRINCIPAL (LISTA / GRÁFICOS)
+  VISTA LISTA / GRÁFICOS
 ========================== */
 const mostrar = () => {
   const movDiv = document.getElementById("movimientos");
@@ -322,18 +282,16 @@ const mostrar = () => {
   if (movDiv.dataset.modo === "graficos") {
     renderizarBarrasGraficos(factor);
   } else {
-    // Mitigación XSS: escapamos descripción
     const esc = s => String(s).replace(/[&<>"']/g, c =>
       ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[c]));
-
     document.getElementById("lista").innerHTML = filtradosGlobal
       .slice(0, registrosVisibles)
       .map(m => `
-        <div class='card' onclick="abrirFormulario('${m.id}')" style="border-left-color: ${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">
+        <div class='card' onclick="abrirFormulario('${m.id}')" style="border-left-color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">
           <div class="meta">${m.f.split("-").reverse().join("/")} • ${m.o}</div>
           <b>${m.c} - ${m.s}</b>
-          ${m.d ? `<div style="font-size:12px;opacity:0.8">${esc(m.d)}</div>` : ''}
-          <div class="monto" style="color: ${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">${m.imp.toFixed(2)} €</div>
+          ${m.d ? `<div style="font-size:12px;opacity:.8">${esc(m.d)}</div>` : ''}
+          <div class="monto" style="color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">${m.imp.toFixed(2)} €</div>
         </div>`).join("");
     document.getElementById("loader").style.display = "none";
   }
@@ -343,83 +301,67 @@ const renderizarBarrasGraficos = (f) => {
   const lista = document.getElementById("lista");
   const totales = filtradosGlobal
     .filter(m => m.imp < 0)
-    .reduce((acc, m) => { acc[m.c] = (acc[m.c] || 0) + Math.abs(m.imp); return acc; }, {});
+    .reduce((acc,m) => { acc[m.c] = (acc[m.c] || 0) + Math.abs(m.imp); return acc; }, {});
   const max = Math.max(...Object.values(totales), 1);
 
-  let html = `<h2 style="color:var(--primary); font-size:18px; text-align:center;">ANÁLISIS DE GASTO</h2>
-  <div style="display:flex; justify-content:center; gap:15px; margin-bottom:25px; font-size:19px; font-weight:900;">
-    <span style="color:var(--electric-blue);">0-${50*f}€</span>
-    <span style="color:var(--success);">${200*f}€</span>
-    <span style="color:var(--warning);">${500*f}€</span>
-    <span style="color:var(--danger);">+</span>
+  let html = `<h2 style="color:var(--primary);font-size:18px;text-align:center">ANÁLISIS DE GASTO</h2>
+  <div style="display:flex;justify-content:center;gap:15px;margin-bottom:25px;font-size:19px;font-weight:900">
+    <span style="color:var(--electric-blue)">0-${50*f}€</span>
+    <span style="color:var(--success)">${200*f}€</span>
+    <span style="color:var(--warning)">${500*f}€</span>
+    <span style="color:var(--danger)">+</span>
   </div>`;
 
-  lista.innerHTML = html + Object.entries(totales)
-    .sort((a,b) => b[1] - a[1])
-    .map(([cat, val]) => {
-      const esCasa = cat.toLowerCase().includes("compra casa");
-      const t1 = Math.min(val, 50*f),
-            t2 = val > 50*f  ? Math.min(val - 50*f ,150*f) : 0,
-            t3 = val > 200*f ? Math.min(val - 200*f,300*f) : 0,
-            t4 = val > 500*f ? (val - 500*f) : 0;
-      return `<div class="card" style="border:none; background:transparent;">
-        <div style="display:flex; justify-content:space-between; font-size:14px; margin-bottom:5px;">
-          <span>${cat}</span><b>${val.toFixed(2)} €</b>
-        </div>
-        <div style="width:${(val/max)*100}%; height:16px; display:flex; background:#000; border-radius:8px; overflow:hidden; border:1px solid rgba(212,175,55,0.2);">
-          ${esCasa
-            ? `<div style="width:100%; background:var(--success);"></div>`
-            : `<div style="width:${(t1/val)*100}%; background:var(--electric-blue);"></div>
-               <div style="width:${(t2/val)*100}%; background:var(--success);"></div>
-               <div style="width:${(t3/val)*100}%; background:var(--warning);"></div>
-               <div style="width:${(t4/val)*100}%; background:var(--danger);"></div>`
-          }
-        </div>
-      </div>`;
-    }).join("");
+  lista.innerHTML = html + Object.entries(totales).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>{
+    const esCasa = cat.toLowerCase().includes("compra casa");
+    const t1 = Math.min(val, 50*f),
+          t2 = val > 50*f  ? Math.min(val - 50*f ,150*f) : 0,
+          t3 = val > 200*f ? Math.min(val - 200*f,300*f) : 0,
+          t4 = val > 500*f ? (val - 500*f) : 0;
+    return `<div class="card" style="border:none;background:transparent">
+      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
+        <span>${cat}</span><b>${val.toFixed(2)} €</b>
+      </div>
+      <div style="width:${(val/max)*100}%;height:16px;display:flex;background:#000;border-radius:8px;overflow:hidden;border:1px solid rgba(212,175,55,.2)">
+        ${esCasa
+          ? `<div style="width:100%;background:var(--success)"></div>`
+          : `<div style="width:${(t1/val)*100}%;background:var(--electric-blue)"></div>
+             <div style="width:${(t2/val)*100}%;background:var(--success)"></div>
+             <div style="width:${(t3/val)*100}%;background:var(--warning)"></div>
+             <div style="width:${(t4/val)*100}%;background:var(--danger)"></div>`
+        }
+      </div>
+    </div>`;
+  }).join("");
 };
 
 /* ==========================
-  FORMULARIO Y LÓGICA CRUD
+  FORMULARIO / CRUD
 ========================== */
 const llenar = (id, base, extra, pre = "", opts = {}) => {
   const s = document.getElementById(id);
   const origenActual = opts.origenActual || "";
 
-  // Opción por defecto
   s.innerHTML = `<option value="" disabled ${pre === "" ? 'selected' : ''}>Seleccionar...</option>`;
-
-  // Consolidar y filtrar según reglas
   let values = [...new Set([...base, ...extra])];
 
-  // 1) Categoría: ocultar Oskar/Josune salvo en Nómina
   if (id === "categoria") {
     const ocultarNominaCats = origenActual !== "Nómina";
-    if (ocultarNominaCats) {
-      values = values.filter(v => !NOMINA_CATS.includes(v));
-    }
+    if (ocultarNominaCats) values = values.filter(v => !NOMINA_CATS.includes(v));
   }
-
-  // 2) Subcategoría: ocultar meses salvo en Nómina
   if (id === "subcategoria") {
     const ocultarMeses = origenActual !== "Nómina";
-    if (ocultarMeses) {
-      values = values.filter(v => !NOMINA_SUBS.includes(v));
-    }
+    if (ocultarMeses) values = values.filter(v => !NOMINA_SUBS.includes(v));
   }
 
-  // Pintar opciones visibles
-  values.sort((a,b) => a.localeCompare(b, 'es')).forEach(v => {
+  values.sort((a,b)=>a.localeCompare(b,'es')).forEach(v=>{
     s.innerHTML += `<option value="${v}" ${v === pre ? 'selected' : ''}>${v}</option>`;
   });
 
-  // Si el valor preseleccionado estaba fuera (p.ej., edición de un Nómina),
-  // lo dejamos seleccionado pero oculto en el desplegable
   if (pre && !values.includes(pre)) {
     s.innerHTML += `<option value="${pre}" selected hidden>${pre}</option>`;
   }
 
-  // Botón “+ Añadir nuevo...”
   if (id !== "origen") s.innerHTML += `<option value="+">+ Añadir nuevo...</option>`;
 };
 
@@ -435,22 +377,16 @@ const abrirFormulario = (id = null) => {
 
     llenar("origen", origenBase, [], m.o);
 
-    // Categoría
     if (NOMINA_CATS.includes(m.c)) {
-      // Edición de nómina: mantenemos el valor seleccionado como única opción visible
-      llenar("categoria", catBase, catExtra); // base limpia
+      llenar("categoria", catBase, catExtra);
       document.getElementById("categoria").innerHTML += `<option value="${m.c}" selected>${m.c}</option>`;
     } else {
-      // No nómina: filtrar Oskar/Josune
       llenar("categoria", catBase, catExtra, m.c, { origenActual: m.o });
     }
 
-    // Subcategoría
     if (m.o === "Nómina") {
-      // Para nómina solo mes seleccionado
       document.getElementById("subcategoria").innerHTML = `<option value="${m.s}" selected>${m.s}</option>`;
     } else {
-      // No nómina: ocultar meses
       llenar("subcategoria", subMaestra, [], m.s, { origenActual: m.o });
     }
 
@@ -459,7 +395,6 @@ const abrirFormulario = (id = null) => {
     btnD.classList.remove("hidden");
 
   } else {
-    // Nuevo
     document.getElementById("editId").value      = "";
     document.getElementById("importe").value     = "";
     document.getElementById("descripcion").value = "";
@@ -468,7 +403,6 @@ const abrirFormulario = (id = null) => {
     llenar("origen", origenBase, []);
 
     const oSel = document.getElementById("origen").value || "";
-    // Por defecto (no nómina) ocultamos Oskar/Josune y meses
     llenar("categoria",   catBase,   catExtra, "", { origenActual: oSel });
     llenar("subcategoria", subMaestra, [],     "", { origenActual: oSel });
 
@@ -481,7 +415,7 @@ const abrirFormulario = (id = null) => {
 
 const guardar = () => {
   const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
-  const v = ids.reduce((acc, id) => ({...acc, [id]: document.getElementById(id).value}), {});
+  const v = ids.reduce((acc,id)=>({...acc,[id]:document.getElementById(id).value}),{});
   const imp = parseFloat(v.importe);
 
   if (!v.origen || !v.categoria || isNaN(imp)) return alert("Faltan datos");
@@ -493,7 +427,8 @@ const guardar = () => {
     c  : v.categoria,
     s  : v.subcategoria,
     imp: v.origen === "Gasto" ? -Math.abs(imp) : Math.abs(imp),
-    d  : v.descripcion
+    d  : v.descripcion,
+    ts : Date.now()
   };
 
   if (v.editId) {
@@ -515,42 +450,41 @@ const volver = () => {
   mostrar();
 };
 
-// BLOQUEO de creación manual de “Oskar/Josune” en Categoría,
-// y resto de comportamientos +/añadir
 const manejarNuevo = (el, tipo) => {
   if (el.value === "+") {
     let n = prompt(`Nueva ${tipo}:`);
     if (!n) { el.value = ""; return; }
 
-    // Normalizar
     n = n.trim();
-    const nLower = n.toLowerCase();
-    n = n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
+    const pretty = mostrarBonito(n);
+    const keyNew = canonicalizeLabel(pretty);
 
     if (tipo === "categoria") {
-      // Bloqueo específico
-      if (["oskar","josune"].includes(nLower)) {
+      const catIdx = buildCanonIndex(catBase, catExtra);
+      // Bloqueo nómina manual
+      if (NOMINA_CATS.some(x => canonicalizeLabel(x) === keyNew)) {
         alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina' y usa el popup.");
         el.value = "";
         return;
       }
-      // Añadir al extra si no existe
-      if (!catExtra.includes(n) && !catBase.includes(n)) {
-        catExtra.push(n);
+      if (catIdx.has(keyNew)) {
+        const existente = catIdx.get(keyNew);
+        llenar("categoria", catBase, catExtra, existente, { origenActual: document.getElementById("origen").value || "" });
+      } else {
+        catExtra.push(pretty);
         localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+        llenar("categoria", catBase, catExtra, pretty, { origenActual: document.getElementById("origen").value || "" });
       }
-      // Rellenar respetando reglas del origen actual
-      const origenActual = document.getElementById("origen").value || "";
-      llenar("categoria", catBase, catExtra, n, { origenActual });
-
     } else {
-      // subcategoria
-      if (!subMaestra.includes(n)) {
-        subMaestra.push(n);
+      const subIdx = buildCanonIndex(subMaestra, []);
+      if (subIdx.has(keyNew)) {
+        const existente = subIdx.get(keyNew);
+        llenar("subcategoria", subMaestra, [], existente, { origenActual: document.getElementById("origen").value || "" });
+      } else {
+        subMaestra.push(pretty);
         localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+        llenar("subcategoria", subMaestra, [], pretty, { origenActual: document.getElementById("origen").value || "" });
       }
-      const origenActual = document.getElementById("origen").value || "";
-      llenar("subcategoria", subMaestra, [], n, { origenActual });
     }
   }
 };
@@ -604,6 +538,60 @@ const actualizarListas = () => {
   origenBase.forEach(o => fO.add(new Option(o, o)));
 };
 
+/* ==========================
+  NORMALIZACIÓN RETROACTIVA (listas + movimientos)
+========================== */
+function normalizarListasExistentes(){
+  // Construir índices de preferencia
+  const prefCatIdx = buildCanonIndex(catBase, []);
+  // Limpiar catExtra: quitar duplicados canónicos y los que ya están en base
+  const vistosCat = new Set(Object.values(catBase).map(v => canonicalizeLabel(v)));
+  const nuevaExtra = [];
+  [...new Set(catExtra)].forEach(v=>{
+    const k = canonicalizeLabel(v);
+    if (vistosCat.has(k)) return; // ya en base
+    if (![...NOMINA_CATS.map(canonicalizeLabel)].includes(k)){
+      if (!nuevaExtra.some(x => canonicalizeLabel(x)===k)) nuevaExtra.push(v);
+      vistosCat.add(k);
+    }
+  });
+  catExtra = nuevaExtra;
+  localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+
+  // Subcategorías: eliminar duplicados canónicos
+  const vistosSub = new Set();
+  const nuevasSubs = [];
+  subMaestra.forEach(v=>{
+    const k = canonicalizeLabel(v);
+    if (!vistosSub.has(k)) { vistas=false; vistas=true; vistosSub.add(k); nuevasSubs.push(v); }
+  });
+  subMaestra = nuevasSubs;
+  localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+
+  // Normalizar movimientos existentes (c y s a su canónico existente si aplica)
+  const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
+  const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
+  let cambiado = false;
+
+  movimientos = movimientos.map(m=>{
+    const kc = canonicalizeLabel(m.c);
+    const ks = canonicalizeLabel(m.s);
+    let c = m.c, s = m.s;
+    if (catIndexCanon.has(kc)) c = catIndexCanon.get(kc);
+    if (subIndexCanon.has(ks)) s = subIndexCanon.get(ks);
+    if (c!==m.c || s!==m.s){
+      cambiado = true;
+      return {...m, c, s, ts: Math.max(Date.now(), (m.ts||0)+1)};
+    }
+    return m;
+  }).sort((a,b)=>new Date(b.f)-new Date(a.f));
+
+  if (cambiado) localStorage.setItem('movimientos', JSON.stringify(movimientos));
+}
+
+/* ==========================
+  INIT
+========================== */
 const init = () => {
   const fM = document.getElementById("filtroMes"),
         fA = document.getElementById("filtroAño"),
@@ -617,12 +605,15 @@ const init = () => {
   for (let a = 2020; a <= 2030; a++) fA.add(new Option(a, a));
   fA.value = hoy.getFullYear();
 
+  // Limpieza retroactiva (Listas + Movimientos)
+  normalizarListasExistentes();
+
   actualizarListas();
   document.getElementById("tagBackup").innerText = "PRÓX: #" + nBackup;
   mostrar();
 };
 
-const ejecutarBackupRotativo = () => { /* Tu lógica de backup original (opcional) */ };
+const ejecutarBackupRotativo = () => { /* opcional */ };
 const resetTotal = () => confirm("¿BORRAR TODO?") && (localStorage.clear(), location.reload());
 
 window.onscroll = () => {
@@ -635,52 +626,37 @@ window.onscroll = () => {
 </script>
 
 <script>
-/**
- * EXPORTACIÓN CSV por filas
- * - Separador: ;
- * - Encabezados en la fila 1
- * - Un movimiento por fila
- * - Decimales: coma europea
- * - Fechas: dd/mm/yyyy
- * - Nombre archivo: mis_gastos_DDMMYYYY.csv
- */
+/* ==========================
+  CSV: EXPORTACIÓN POR FILAS (CSV europeo)
+  - Encabezados en fila 1
+  - Delimitador ;  |  Decimales coma
+  - Fechas dd/mm/yyyy
+  - Nombre: mis_gastos_DDMMYYYY.csv
+========================== */
 const exportarCSV = () => {
   if (!movimientos || movimientos.length === 0) {
     alert("No hay datos para exportar.");
     return;
   }
-
   const SEP = ";";
 
-  // ISO -> dd/mm/yyyy
   const toESDate = (iso) => {
-    const [y, m, d] = (iso || "").split("-");
-    if (!y || !m || !d) return iso || "";
-    return `${d}/${m}/${y}`;
+    const [y,m,d] = (iso || "").split("-");
+    return (y && m && d) ? `${d}/${m}/${y}` : (iso || "");
   };
-
-  // Número -> coma europea
   const toEuro = (n) => {
     const val = (typeof n === "number" ? n : parseFloat(n || 0));
     const s = Number.isFinite(val) ? val.toString() : "0";
     return s.includes(".") ? s.replace(".", ",") : s;
   };
-
-  // Limpieza segura para CSV
   const csvCell = (v) => {
-    let t = (v ?? "").toString();
-    t = t.replace(/\r?\n/g, "⏎"); // evitar romper filas
-    // Si contiene separadores, comillas o saltos, encerramos en comillas
-    if (/[;"\n]/.test(t)) {
-      t = '"' + t.replace(/"/g, '""') + '"';
-    }
+    let t = (v ?? "").toString().replace(/\r?\n/g, "⏎");
+    if (/[;"\n]/.test(t)) t = '"' + t.replace(/"/g,'""') + '"';
     return t;
   };
 
-  // Encabezados
   const headers = ["Fecha","Origen","Categoria","Subcategoria","Importe","Descripcion"].join(SEP);
 
-  // Filas
   const rows = movimientos.map(m =>
     [
       toESDate(m.f),
@@ -694,28 +670,24 @@ const exportarCSV = () => {
 
   const csv = [headers, ...rows].join("\n");
 
-  // Nombre del archivo: mis_gastos_DDMMYYYY.csv
   const hoy = new Date();
-  const dd = String(hoy.getDate()).padStart(2, "0");
-  const mm = String(hoy.getMonth() + 1).padStart(2, "0");
+  const dd = String(hoy.getDate()).padStart(2,"0");
+  const mm = String(hoy.getMonth()+1).padStart(2,"0");
   const yyyy = hoy.getFullYear();
   const fileName = `mis_gastos_${dd}${mm}${yyyy}.csv`;
 
-  // Descargar
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
 </script>
-  
+
+<script>
 /* ==========================
-  CSV: IMPORTACIÓN (detecta TAB/;/, y coma decimal)
+  CSV: IMPORTACIÓN con unificación canónica
 ========================== */
 const importarCSV = (e) => {
   const file = e.target.files && e.target.files[0];
@@ -724,40 +696,39 @@ const importarCSV = (e) => {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const text = reader.result.replace(/^\uFEFF/, "");
+      const text = reader.result.replace(/^\uFEFF/,"");
       const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
       if (!lines.length) { alert("El archivo está vacío."); return; }
 
+      // Detectar delimitador
       const header = lines[0];
       const counts = {
-        tab : (header.match(/\t/g) || []).length,
-        semi: (header.match(/;/g)  || []).length,
-        comma:(header.match(/,/g)  || []).length
+        tab:(header.match(/\t/g)||[]).length,
+        semi:(header.match(/;/g)||[]).length,
+        comma:(header.match(/,/g)||[]).length
       };
       let delim = "\t";
       if (counts.tab >= counts.semi && counts.tab >= counts.comma) delim = "\t";
       else if (counts.semi >= counts.comma) delim = ";";
       else delim = ",";
 
+      // Parser CSV/TSV con comillas
       const parseLine = (line) => {
-        const out = [];
-        let cur = "", inQ = false;
-        for (let i = 0; i < line.length; i++) {
+        const out = []; let cur = "", inQ = false;
+        for (let i=0;i<line.length;i++){
           const ch = line[i];
-          if (ch === '"') {
-            if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+          if (ch === '"'){
+            if (inQ && line[i+1] === '"'){ cur += '"'; i++; }
             else inQ = !inQ;
-          } else if (ch === delim && !inQ) {
-            out.push(cur); cur = "";
-          } else {
-            cur += ch;
-          }
+          } else if (ch === delim && !inQ) { out.push(cur); cur = ""; }
+          else { cur += ch; }
         }
         out.push(cur);
         return out;
       };
 
-      const cols = parseLine(header).map(h => h.trim().toLowerCase());
+      // Índices de columnas
+      const cols = parseLine(header).map(h=>h.trim().toLowerCase());
       const idx = {
         fecha: cols.findIndex(c => c.startsWith("fecha")),
         origen: cols.findIndex(c => c.startsWith("origen")),
@@ -766,11 +737,11 @@ const importarCSV = (e) => {
         importe: cols.findIndex(c => c.startsWith("importe")),
         descripcion: cols.findIndex(c => c.startsWith("descripcion") || c.startsWith("descripción"))
       };
-
       const required = ["fecha","origen","categoria","subcategoria","importe"];
       const missing = required.filter(k => idx[k] < 0);
       if (missing.length) { alert("Faltan columnas: " + missing.join(", ")); return; }
 
+      // Utils
       const toISODate = (ddmmyyyy) => {
         const m = ddmmyyyy.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (!m) return ddmmyyyy;
@@ -778,8 +749,8 @@ const importarCSV = (e) => {
       };
       const parseEuroNumber = (s) => {
         let t = (s || '').toString().trim();
-        t = t.replace(/\.(?=\d{3}(?:\D|$))/g, '');
-        t = t.replace(',', '.');
+        t = t.replace(/\.(?=\d{3}(?:\D|$))/g, ''); // miles
+        t = t.replace(',', '.');                   // decimal
         const n = parseFloat(t);
         return isNaN(n) ? 0 : n;
       };
@@ -789,7 +760,10 @@ const importarCSV = (e) => {
         if (t.startsWith('"') && t.endsWith('"')) t = t.slice(1,-1);
         return t.trim();
       };
-      const normalizeCap = (s) => s ? (s.trim().charAt(0).toUpperCase() + s.trim().slice(1)) : s;
+
+      // Índices canónicos actuales (para mapear a existentes)
+      const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
+      const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
 
       const nuevos = [];
       for (let i = 1; i < lines.length; i++) {
@@ -805,43 +779,57 @@ const importarCSV = (e) => {
 
         const f = toISODate(cleanText(rawFecha));
         let o = cleanText(rawOrigen);
-        let c = normalizeCap(cleanText(rawCat));
-        let s = normalizeCap(cleanText(rawSub));
+        let c = mostrarBonito(cleanText(rawCat));
+        let s = mostrarBonito(cleanText(rawSub));
         let d = cleanText(rawDesc);
 
+        // Origen y signo
         const oLow = o.toLowerCase();
         if (oLow.startsWith('nom')) o = 'Nómina';
         else if (oLow.startsWith('gas')) o = 'Gasto';
         else if (oLow.startsWith('ing')) o = 'Ingreso';
 
+        // Unificación canónica
+        const keyC = canonicalizeLabel(c);
+        const keyS = canonicalizeLabel(s);
+        if (catIndexCanon.has(keyC)) c = catIndexCanon.get(keyC);
+        if (subIndexCanon.has(keyS)) s = subIndexCanon.get(keyS);
+
         let imp = parseEuroNumber(rawImp);
         if (o === 'Gasto' && imp > 0) imp = -Math.abs(imp);
         if (o !== 'Gasto' && imp < 0) imp = Math.abs(imp);
 
-        const mov = { id:`id_${Date.now()}_${i}`, f, o, c, s, imp, d };
+        const mov = { id:`id_${Date.now()}_${i}`, f, o, c, s, imp, d, ts: Date.now() + i };
         if (!f || !o || !c || !s || isNaN(imp)) continue;
 
         nuevos.push(mov);
       }
 
-      const nuevasCats = [];
-      const nuevasSubs = [];
-      nuevos.forEach(m => {
-        if (![...catBase, ...catExtra, ...NOMINA_CATS].includes(m.c)) {
-          if (!nuevasCats.includes(m.c)) nuevasCats.push(m.c);
-          catExtra.push(m.c);
+      // Insertar categorías/subcategorías nuevas (no duplicadas canónicas)
+      const addIfNewCanon = (list, storeKey, value) => {
+        const k = canonicalizeLabel(value);
+        const exists = list.some(v => canonicalizeLabel(v) === k);
+        if (!exists) {
+          list.push(value);
+          localStorage.setItem(storeKey, JSON.stringify(list));
         }
-        if (![...subMaestra, ...NOMINA_SUBS].includes(m.s)) {
-          if (!nuevasSubs.includes(m.s)) nuevasSubs.push(m.s);
-          subMaestra.push(m.s);
+      };
+      nuevos.forEach(m=>{
+        // cat
+        if (![...catBase, ...catExtra, ...NOMINA_CATS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.c))){
+          addIfNewCanon(catExtra, 'categoriaExtra', m.c);
+        }
+        // sub
+        if (![...subMaestra, ...NOMINA_SUBS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.s))){
+          addIfNewCanon(subMaestra, 'subMaestra_v2', m.s);
         }
       });
-      if (nuevasCats.length) localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-      if (nuevasSubs.length) localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
 
-      movimientos = [...movimientos, ...nuevos].sort((a,b) => new Date(b.f) - new Date(a.f));
+      // Guardar movimientos (ordenados)
+      movimientos = [...movimientos, ...nuevos].sort((a,b)=>new Date(b.f)-new Date(a.f));
       localStorage.setItem('movimientos', JSON.stringify(movimientos));
 
+      // Refrescar UI
       actualizarListas();
       resetPagina();
       mostrar();
@@ -864,162 +852,110 @@ const importarCSV = (e) => {
 ========================== */
 const estiloPlata = document.createElement('style');
 estiloPlata.innerHTML = `
-#form button[onclick="volver()"] {
-  background: linear-gradient(45deg, #757575, #c0c0c0, #ffffff, #c0c0c0, #757575) !important;
-  color: #000 !important;
-  height: 70px !important;
-  width: 100% !important;
-  font-size: 22px !important;
-  font-weight: bold !important;
-  border-radius: 16px !important;
-  margin-top: 10px !important;
-  border: none !important;
-  opacity: 1 !important;
-  text-transform: uppercase !important;
-}`;
+#form button[onclick="volver()"]{
+  background:linear-gradient(45deg,#757575,#c0c0c0,#ffffff,#c0c0c0,#757575)!important;
+  color:#000!important;height:70px!important;width:100%!important;font-size:22px!important;
+  font-weight:bold!important;border-radius:16px!important;margin-top:10px!important;border:none!important;
+  opacity:1!important;text-transform:uppercase!important;}`;
 document.head.appendChild(estiloPlata);
 
 /* ==========================
-  POPUP PREMIUM: NUEVA CATEGORÍA / SUBCATEGORÍA
+  POPUP PREMIUM + “Añadir nuevo”
 ========================== */
-(function() {
-  const style = document.createElement('style');
-  style.innerHTML = `
-  .premium-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center;
-    z-index: 99999; backdrop-filter: blur(12px); }
-  .premium-content { background: #0b0f1a; width: 85%; max-width: 320px; border-radius: 40px;
-    border: 2px solid #d4af37; padding: 35px 25px; text-align: center;
-    box-shadow: 0 0 40px rgba(212,175,55,0.3); }
-  .premium-title { color: #d4af37; font-size: 22px; font-weight: 900; margin-bottom: 25px; }
-  .premium-input { background: #131926; border: 1px solid #1e293b; color: white;
-    border-radius: 15px; padding: 18px; font-size: 18px; width: 100%;
-    margin-bottom: 25px; text-align: center; outline: none; }
-  .btn-gold { background: linear-gradient(180deg, #bf953f, #fcf6ba, #b38728);
-    color: black; border: none; width: 100%; height: 65px; border-radius: 20px;
-    font-size: 20px; font-weight: 900; text-transform: uppercase; margin-bottom: 12px; }
-  .btn-silver { background: linear-gradient(180deg, #757575, #c0c0c0, #ffffff, #c0c0c0);
-    color: black; border: none; width: 100%; height: 65px; border-radius: 20px;
-    font-size: 20px; font-weight: 900; text-transform: uppercase; }`;
+(function(){
+  const style=document.createElement('style');
+  style.innerHTML=`
+  .premium-overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(12px)}
+  .premium-content{background:#0b0f1a;width:85%;max-width:320px;border-radius:40px;border:2px solid #d4af37;padding:35px 25px;text-align:center;box-shadow:0 0 40px rgba(212,175,55,.3)}
+  .premium-title{color:#d4af37;font-size:22px;font-weight:900;margin-bottom:25px}
+  .premium-input{background:#131926;border:1px solid #1e293b;color:#fff;border-radius:15px;padding:18px;font-size:18px;width:100%;margin-bottom:25px;text-align:center;outline:none}
+  .btn-gold{background:linear-gradient(180deg,#bf953f,#fcf6ba,#b38728);color:#000;border:none;width:100%;height:65px;border-radius:20px;font-size:20px;font-weight:900;text-transform:uppercase;margin-bottom:12px}
+  .btn-silver{background:linear-gradient(180deg,#757575,#c0c0c0,#ffffff);color:#000;border:none;width:100%;height:65px;border-radius:20px;font-size:20px;font-weight:900;text-transform:uppercase}`;
   document.head.appendChild(style);
 
-  const lanzarPopupPremium = (el, tipo) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'premium-overlay';
-    overlay.innerHTML = `
-      <div class="premium-content">
-        <div class="premium-title">NUEVO VALOR</div>
-        <input type="text" id="val_premium" class="premium-input" autofocus placeholder="..." />
-        <button class="btn-gold" id="confirm_premium">AÑADIR</button>
-        <button class="btn-silver" id="cancel_premium">CANCELAR</button>
-      </div>`;
+  const lanzarPopupPremium = (el,tipo) => {
+    const overlay=document.createElement('div'); overlay.className='premium-overlay';
+    overlay.innerHTML=`<div class="premium-content">
+      <div class="premium-title">NUEVO VALOR</div>
+      <input type="text" id="val_premium" class="premium-input" autofocus placeholder="..." />
+      <button class="btn-gold" id="confirm_premium">AÑADIR</button>
+      <button class="btn-silver" id="cancel_premium">CANCELAR</button>
+    </div>`;
     document.body.appendChild(overlay);
 
-    document.getElementById('confirm_premium').onclick = () => {
-      let n = document.getElementById('val_premium').value.trim();
-      if (n) {
-        // La lógica real la maneja manejarNuevo, pero aquí permitimos atajo similar
-        const select = el;
-        select.value = "+";
+    document.getElementById('confirm_premium').onclick=()=>{
+      let n=document.getElementById('val_premium').value.trim();
+      if(n){
+        const select=el; select.value="+";
         overlay.remove();
-        // Disparamos la misma ruta que manejarNuevo haría
-        // (dejamos que manejarNuevo bloquee Oskar/Josune si procede)
-        setTimeout(() => manejarNuevo(select, select.id), 0);
-      } else {
-        overlay.remove();
-      }
+        setTimeout(()=>manejarNuevo(select,select.id),0);
+      } else overlay.remove();
     };
-    document.getElementById('cancel_premium').onclick = () => {
-      el.value = "";
-      overlay.remove();
-    };
+    document.getElementById('cancel_premium').onclick=()=>{ el.value=""; overlay.remove(); };
   };
 
-  document.addEventListener('change', (e) => {
-    if ((e.target.id === 'categoria' || e.target.id === 'subcategoria') && e.target.value === "+") {
-      e.stopImmediatePropagation();
-      lanzarPopupPremium(e.target, e.target.id);
+  document.addEventListener('change',(e)=>{
+    if((e.target.id==='categoria'||e.target.id==='subcategoria') && e.target.value === "+"){
+      e.stopImmediatePropagation(); lanzarPopupPremium(e.target,e.target.id);
     }
-  }, true);
+  },true);
 })();
 </script>
 
 <script>
 /* ==========================
-  POPUP NÓMINA (Oskar / Josune) + refresco según Origen
+  POPUP NÓMINA (Oskar / Josune) + refresco Origen
 ========================== */
-(function() {
-  const estiloNomina = document.createElement('style');
-  estiloNomina.innerHTML = `
-  .nomina-overlay { position: fixed; top:0; left:0; width:100%; height:100%;
-    background: rgba(0,0,0,0.9); display:flex; align-items:center; justify-content:center;
-    z-index:100001; backdrop-filter: blur(15px); }
-  .nomina-content { background:#0b0f1a; width:85%; max-width:340px; border-radius:45px;
-    border:2px solid #d4af37; padding:40px 25px; text-align:center;
-    box-shadow:0 0 50px rgba(212,175,55,0.3); }
-  .nomina-title { color:#d4af37; font-size:24px; font-weight:900; margin-bottom:35px; }
-  .btn-nomina { width:100%; height:75px; border-radius:25px; font-size:24px; font-weight:900;
-    border:none; margin-bottom:15px; cursor:pointer; text-transform:uppercase;
-    display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,0,0,0.4); }
-  .btn-oskar { background:linear-gradient(180deg, #bf953f, #fcf6ba, #b38728); color:black; }
-  .btn-josune { background:linear-gradient(180deg, #a00050, #ff1493, #ff85c1); color:white; }
-  .btn-cancel { background:linear-gradient(180deg, #757575, #c0c0c0, #ffffff); color:black; margin-bottom:0; }`;
-  document.head.appendChild(estiloNomina);
+(function(){
+  const estilo=document.createElement('style');
+  estilo.innerHTML=`
+  .nomina-overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:100001;backdrop-filter:blur(15px)}
+  .nomina-content{background:#0b0f1a;width:85%;max-width:340px;border-radius:45px;border:2px solid #d4af37;padding:40px 25px;text-align:center;box-shadow:0 0 50px rgba(212,175,55,.3)}
+  .nomina-title{color:#d4af37;font-size:24px;font-weight:900;margin-bottom:35px}
+  .btn-nomina{width:100%;height:75px;border-radius:25px;font-size:24px;font-weight:900;border:none;margin-bottom:15px;cursor:pointer;text-transform:uppercase;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(0,0,0,.4)}
+  .btn-oskar{background:linear-gradient(180deg,#bf953f,#fcf6ba,#b38728);color:#000}
+  .btn-josune{background:linear-gradient(180deg,#a00050,#ff1493,#ff85c1);color:#fff}
+  .btn-cancel{background:linear-gradient(180deg,#757575,#c0c0c0,#ffffff);color:#000;margin-bottom:0}`;
+  document.head.appendChild(estilo);
 
   const lanzarPopupNomina = () => {
-    const overlay = document.createElement('div');
-    overlay.className = 'nomina-overlay';
-    overlay.innerHTML = `
-      <div class="nomina-content">
-        <div class="nomina-title">¿QUIÉN COBRA?</div>
-        <button class="btn-nomina btn-oskar" id="btn_oskar">OSKAR</button>
-        <button class="btn-nomina btn-josune" id="btn_josune">JOSUNE</button>
-        <button class="btn-nomina btn-cancel" id="btn_cancel_nom">CANCELAR</button>
-      </div>`;
+    const overlay=document.createElement('div'); overlay.className='nomina-overlay';
+    overlay.innerHTML=`<div class="nomina-content">
+      <div class="nomina-title">¿QUIÉN COBRA?</div>
+      <button class="btn-nomina btn-oskar" id="btn_oskar">OSKAR</button>
+      <button class="btn-nomina btn-josune" id="btn_josune">JOSUNE</button>
+      <button class="btn-nomina btn-cancel" id="btn_cancel_nom">CANCELAR</button>
+    </div>`;
     document.body.appendChild(overlay);
 
-    document.getElementById('btn_oskar').onclick = () => {
-      document.getElementById("categoria").innerHTML = `<option value="Oskar" selected>Oskar</option>`;
-      overlay.remove();
-    };
-    document.getElementById('btn_josune').onclick = () => {
-      document.getElementById("categoria").innerHTML = `<option value="Josune" selected>Josune</option>`;
-      overlay.remove();
-    };
-    document.getElementById('btn_cancel_nom').onclick = () => {
-      document.getElementById("origen").value = "Gasto";
-      // Al volver a Gasto refrescamos selects con reglas de ocultación
-      llenar('categoria',   catBase,   catExtra, "", { origenActual: "Gasto" });
-      llenar('subcategoria', subMaestra, [],     "", { origenActual: "Gasto" });
-      overlay.remove();
-    };
+    document.getElementById('btn_oskar').onclick=()=>{ document.getElementById("categoria").innerHTML=`<option value="Oskar" selected>Oskar</option>`; overlay.remove(); };
+    document.getElementById('btn_josune').onclick=()=>{ document.getElementById("categoria").innerHTML=`<option value="Josune" selected>Josune</option>`; overlay.remove(); };
+    document.getElementById('btn_cancel_nom').onclick=()=>{ document.getElementById("origen").value="Gasto";
+      llenar('categoria',catBase,catExtra,"",{origenActual:"Gasto"}); llenar('subcategoria',subMaestra,[], "",{origenActual:"Gasto"}); overlay.remove(); };
   };
 
-  document.addEventListener('change', (e) => {
-    if (e.target.id === 'origen') {
+  document.addEventListener('change',(e)=>{
+    if(e.target.id === 'origen'){
       const o = e.target.value;
-
       if (o === "Nómina") {
         const fVal = document.getElementById("fecha").value || new Date().toISOString().split("T")[0];
         const mIdx = new Date(fVal + "T00:00:00").getMonth();
-        document.getElementById("subcategoria").innerHTML =
-          `<option value="${mesesLabel[mIdx]}" selected>${mesesLabel[mIdx]}</option>`;
+        document.getElementById("subcategoria").innerHTML = `<option value="${mesesLabel[mIdx]}" selected>${mesesLabel[mIdx]}</option>`;
         lanzarPopupNomina();
       } else {
-        // No Nómina: refrescar selects con reglas de ocultación
-        llenar('categoria',   catBase,   catExtra, "", { origenActual: o });
-        llenar('subcategoria', subMaestra, [],     "", { origenActual: o });
+        llenar('categoria',catBase,catExtra,"",{origenActual:o});
+        llenar('subcategoria',subMaestra,[], "",{origenActual:o});
       }
     }
-  }, true);
+  },true);
 })();
 </script>
 
 <script>
 /* ==========================
-  REPARAR ELIMINAR
+  ELIMINAR REGISTRO
 ========================== */
-window.eliminarRegistroActual = function() {
+window.eliminarRegistroActual = function(){
   const idAEliminar = document.getElementById("editId").value;
   if (!idAEliminar) return;
   if (confirm("¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTE REGISTRO?")) {
@@ -1030,131 +966,21 @@ window.eliminarRegistroActual = function() {
 };
 
 /* ==========================
-  FILTROS GRANDES
+  FILTROS GRANDES (UI)
 ========================== */
 const estiloFiltrosGrandes = document.createElement('style');
 estiloFiltrosGrandes.innerHTML = `
-.filtro-item span { font-size: 13px !important; font-weight: 900 !important; letter-spacing: 1px !important; margin-bottom: 5px !important; display: inline-block !important; }
-.filtro-item select { font-size: 16px !important; height: 50px !important; padding: 5px 10px !important; border-radius: 14px !important; font-weight: bold !important; }
-.filtros-wrapper { padding: 15px 10px !important; gap: 10px !important; }`;
+.filtro-item span{font-size:13px!important;font-weight:900!important;letter-spacing:1px!important;margin-bottom:5px!important;display:inline-block!important}
+.filtro-item select{font-size:16px!important;height:50px!important;padding:5px 10px!important;border-radius:14px!important;font-weight:bold!important}
+.filtros-wrapper{padding:15px 10px!important;gap:10px!important}`;
 document.head.appendChild(estiloFiltrosGrandes);
 
 /* ==========================
-  BOTÓN CASA + INYECTOR FINAL
-========================== */
-(function() {
-  const style = document.createElement('style');
-  style.innerHTML = `
-  .btn-casa-premium {
-    position: fixed; bottom: 35px; left: 27%;
-    width: 65px; height: 65px; background: var(--gold-gradient);
-    border-radius: 50%; display: none; align-items:center; justify-content:center;
-    border:none; z-index:1200; box-shadow:0 4px 15px rgba(0,0,0,0.5);
-    cursor:pointer; transition: all 0.3s ease;
-  }
-  .btn-casa-premium svg { fill:black; width:32px; height:32px; }
-  .btn-casa-premium.apagado { filter: grayscale(1) brightness(0.4); transform:scale(0.85); }`;
-  document.head.appendChild(style);
-
-  const btnCasa = document.createElement('button');
-  btnCasa.className = 'btn-casa-premium';
-  btnCasa.id = 'btnFiltroCasa';
-  btnCasa.setAttribute('aria-label', 'Filtrar compras de casa');
-  btnCasa.innerHTML = `<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>`;
-  document.body.appendChild(btnCasa);
-
-  let casaOculta = false;
-  btnCasa.onclick = () => {
-    casaOculta = !casaOculta;
-    btnCasa.classList.toggle('apagado', casaOculta);
-    mostrar();
-  };
-
-  window.inyectorFinalV091 = function() {
-    const movDiv = document.getElementById("movimientos");
-    if (!movDiv || movDiv.dataset.modo !== "graficos") {
-      btnCasa.style.display = 'none';
-      return;
-    }
-    btnCasa.style.display = 'flex';
-
-    const fCat = document.getElementById("filtroCat").value;
-    const fMes = document.getElementById("filtroMes").value;
-    const f = (fMes === "TODOS") ? 12 : 1;
-
-    const lista = document.getElementById("lista");
-    let datosProcesados = [...filtradosGlobal];
-    if (casaOculta) {
-      datosProcesados = datosProcesados.filter(m => !m.c.toLowerCase().includes("compra casa"));
-    }
-
-    let datosFinales = {};
-    let titulo = "ANÁLISIS DE GASTO";
-
-    if (fCat === "TODAS") {
-      datosFinales = datosProcesados.filter(m => m.imp < 0)
-        .reduce((acc, m) => { acc[m.c] = (acc[m.c] || 0) + Math.abs(m.imp); return acc; }, {});
-    } else {
-      datosFinales = datosProcesados.filter(m => m.imp < 0)
-        .reduce((acc, m) => { acc[m.s] = (acc[m.s] || 0) + Math.abs(m.imp); return acc; }, {});
-      titulo = `${fCat.toUpperCase()} (DESGLOSE)`;
-    }
-
-    const max = Math.max(...Object.values(datosFinales), 1);
-
-    let html = `
-      <h2 style="color:var(--primary); font-size:18px; text-align:center; margin-bottom:5px;">${titulo}</h2>
-      <div style="display:flex; justify-content:center; gap:12px; margin-bottom:25px; font-size:19px; font-weight:900;">
-        <span style="color:var(--electric-blue);">0-${50*f}€</span>
-        <span style="color:var(--success);">${200*f}€</span>
-        <span style="color:var(--warning);">${500*f}€</span>
-        <span style="color:var(--danger);">+${500*f}€</span>
-      </div>`;
-
-    lista.innerHTML = html + Object.entries(datosFinales)
-      .sort((a,b) => b[1] - a[1])
-      .map(([nombre, val]) => {
-        const esCasa = nombre.toLowerCase().includes("compra casa");
-        const t1 = Math.min(val, 50*f),
-              t2 = val > 50*f  ? Math.min(val - 50*f ,150*f) : 0,
-              t3 = val > 200*f ? Math.min(val - 200*f,300*f) : 0,
-              t4 = val > 500*f ? val - 500*f : 0;
-        return `<div class="card" style="border:none; background:transparent; margin-bottom:15px;">
-          <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;">
-            <span style="color:#94a3b8;">${nombre}</span>
-            <b style="color:#fff;">${val.toFixed(2)} €</b>
-          </div>
-          <div style="width:${(val/max)*100}%; height:14px; display:flex; background:#000; border-radius:7px; overflow:hidden; border:1px solid rgba(212,175,55,0.1);">
-            ${esCasa
-              ? `<div style="width:100%; background:var(--success);"></div>`
-              : `<div style="width:${(t1/val)*100}%; background:var(--electric-blue);"></div>
-                 <div style="width:${(t2/val)*100}%; background:var(--success);"></div>
-                 <div style="width:${(t3/val)*100}%; background:var(--warning);"></div>
-                 <div style="width:${(t4/val)*100}%; background:var(--danger);"></div>`
-            }
-          </div>
-        </div>`;
-      }).join("");
-  };
-
-  document.querySelectorAll('select').forEach(
-    s => s.addEventListener('change', () => setTimeout(window.inyectorFinalV091, 50))
-  );
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('.plus')) setTimeout(window.inyectorFinalV091, 50);
-  });
-})();
-</script>
-
-<script>
-/* ==========================
-  REGISTRO DEL SERVICE WORKER (PWA)
+  REGISTRO SERVICE WORKER (PWA)
 ========================== */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('./sw.js')
-      .catch(err => console.error("SW ERROR:", err));
+    navigator.serviceWorker.register('./sw.js').catch(err => console.error("SW ERROR:", err));
   });
 }
 </script>
