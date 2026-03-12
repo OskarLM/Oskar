@@ -636,13 +636,13 @@ window.onscroll = () => {
 
 <script>
 /**
- * EXPORTACIÓN “POR FILAS” EN TSV (TAB-SEPARATED)
- * - Fila 1: encabezados (Fecha, Origen, Categoria, Subcategoria, Importe, Descripcion)
- * - Desde fila 2: un movimiento por fila
- * - Separador: TAB (\t)
+ * EXPORTACIÓN CSV por filas
+ * - Separador: ;
+ * - Encabezados en la fila 1
+ * - Un movimiento por fila
  * - Decimales: coma europea
- * - Fecha: dd/mm/yyyy
- * - Descripción: mantiene comillas " tal cual; evita tabs/saltos que rompan columnas
+ * - Fechas: dd/mm/yyyy
+ * - Nombre archivo: mis_gastos_DDMMYYYY.csv
  */
 const exportarCSV = () => {
   if (!movimientos || movimientos.length === 0) {
@@ -650,9 +650,9 @@ const exportarCSV = () => {
     return;
   }
 
-  const SEP = "\t"; // TAB
+  const SEP = ";";
 
-  // Fecha ISO -> dd/mm/yyyy
+  // ISO -> dd/mm/yyyy
   const toESDate = (iso) => {
     const [y, m, d] = (iso || "").split("-");
     if (!y || !m || !d) return iso || "";
@@ -666,48 +666,53 @@ const exportarCSV = () => {
     return s.includes(".") ? s.replace(".", ",") : s;
   };
 
-  // Normalizar valor de celda para TSV:
-  // - Reemplazar TAB por espacio para no desalinear columnas
-  // - Convertir saltos de línea a símbolo visible (⏎) para no romper filas
-  // - Mantener comillas " exactamente como vienen (no las duplicamos)
-  const tsvCell = (v) => {
-    return (v ?? "")
-      .toString()
-      .replace(/\t/g, " ")      // evita romper columnas
-      .replace(/\r?\n/g, "⏎");  // evita romper filas
+  // Limpieza segura para CSV
+  const csvCell = (v) => {
+    let t = (v ?? "").toString();
+    t = t.replace(/\r?\n/g, "⏎"); // evitar romper filas
+    // Si contiene separadores, comillas o saltos, encerramos en comillas
+    if (/[;"\n]/.test(t)) {
+      t = '"' + t.replace(/"/g, '""') + '"';
+    }
+    return t;
   };
 
-  // Encabezados exactos en la primera fila
+  // Encabezados
   const headers = ["Fecha","Origen","Categoria","Subcategoria","Importe","Descripcion"].join(SEP);
 
-  // Construcción de filas
-  const rows = movimientos.map(m => {
-    const fecha = toESDate(m.f);
-    const origen = m.o || "";
-    const categoria = m.c || "";
-    const subcat = m.s || "";
-    const importe = toEuro(m.imp);
-    // Conservamos comillas tal cual, pero saneamos tabs/lf
-    const desc = tsvCell((m.d ?? "").trim());
+  // Filas
+  const rows = movimientos.map(m =>
+    [
+      toESDate(m.f),
+      m.o || "",
+      m.c || "",
+      m.s || "",
+      toEuro(m.imp),
+      (m.d ?? "").trim()
+    ].map(csvCell).join(SEP)
+  );
 
-    return [fecha, origen, categoria, subcat, importe, desc].join(SEP);
-  });
+  const csv = [headers, ...rows].join("\n");
 
-  const tsv = [headers, ...rows].join("\n");
+  // Nombre del archivo: mis_gastos_DDMMYYYY.csv
+  const hoy = new Date();
+  const dd = String(hoy.getDate()).padStart(2, "0");
+  const mm = String(hoy.getMonth() + 1).padStart(2, "0");
+  const yyyy = hoy.getFullYear();
+  const fileName = `mis_gastos_${dd}${mm}${yyyy}.csv`;
 
   // Descargar
-  const blob = new Blob([tsv], { type: "text/tab-separated-values;charset=utf-8;" });
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href = url;
-  a.download = "mis_gastos_filas.tsv";
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
 </script>
-
   
 /* ==========================
   CSV: IMPORTACIÓN (detecta TAB/;/, y coma decimal)
