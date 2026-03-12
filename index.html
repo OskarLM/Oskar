@@ -83,8 +83,8 @@
   <div class="background-icon">O&J</div>
 
   <div id="movimientos" class="hidden">
-    <div class="topbar">MIS GASTOS • V0.9.1 <span id="tagBackup">APK CLOUD</span></div>
-
+    <div class="topbar">MIS GASTOS • V0.0 BETA</div>
+    
     <div class="container">
       <div class="filtros-wrapper">
         <div class="filtro-item"><span style="font-size:9px;color:var(--primary)">AÑO</span><select id="filtroAño" onchange="resetPagina();mostrar()"></select></div>
@@ -609,7 +609,7 @@ const init = () => {
   normalizarListasExistentes();
 
   actualizarListas();
-  document.getElementById("tagBackup").innerText = "PRÓX: #" + nBackup;
+ 
   mostrar();
 };
 
