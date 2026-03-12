@@ -205,3 +205,196 @@ export async function queryItems({
     const low = [prefix, ''];
     const high = [prefix + '\uffff', '\uffff'];
     if (dir === 'next') {
+      range = IDBKeyRange.bound(low, high);
+    } else {
+      range = IDBKeyRange.bound(low, high);
+    }
+  } else {
+    // Rango por fecha con compuesto [createdAt, id]
+    const lowTs = from ?? 0;
+    const highTs = to ?? Number.MAX_SAFE_INTEGER;
+    const low = [lowTs, ''];
+    const high = [highTs, '\uffff'];
+    range = IDBKeyRange.bound(low, high);
+  }
+
+  // Ajuste por paginación (keyset):
+  // - Para 'desc' (prev): usamos upperBound con exclusión de la última clave
+  // - Para 'asc'  (next): usamos lowerBound con exclusión de la última clave
+  if (cObj && cObj.createdAt && cObj.id) {
+    const key = [cObj.createdAt, cObj.id];
+
+    if (indexName === 'byTextId' && prefix) {
+      // Para índice de texto, el cursor de página solo tiene sentido si el prefijo es el mismo.
+      // Reposicionamos usando el mismo prefijo.
+      if (dir === 'next') {
+        range = IDBKeyRange.lowerBound([prefix, cObj.id], true);
+      } else {
+        range = IDBKeyRange.upperBound([prefix, cObj.id], true);
+      }
+    } else {
+      // Por fecha
+      if (dir === 'next') {
+        // seguir hacia "más antiguos" en ascendente (o "más nuevos" si order=asc)
+        // next => menor clave si order asc, mayor si desc; lo controlamos por 'dir'
+        range = IDBKeyRange.lowerBound(key, true);
+      } else {
+        range = IDBKeyRange.upperBound(key, true);
+      }
+    }
+  }
+
+  return withStore('readonly', (store) =>
+    new Promise((resolve, reject) => {
+      const index = store.index(indexName);
+      const out = [];
+      let firstKey = null;
+      let lastKey = null;
+
+      const req = index.openCursor(range, dir);
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (!cursor) {
+          // Página finalizada
+          resolve({
+            items: out,
+            page: {
+              nextCursor: out.length ? encodeCursor(lastKey) : null,
+              prevCursor: out.length ? encodeCursor(firstKey) : null,
+              hasNext: out.length === limit, // heurística simple
+              hasPrev: !!cObj,               // si veníamos de una página previa
+            },
+          });
+          return;
+        }
+
+        const val = cursor.value;
+
+        // Si usamos índice por fecha pero hay prefijo de texto, filtramos en memoria
+        if (!useTextIndex && prefix) {
+          const matches = val.textNorm.startsWith(prefix);
+          if (!matches) {
+            return cursor.continue();
+          }
+        }
+
+        // Acumula hasta 'limit'
+        if (out.length < limit) {
+          out.push(val);
+
+          // Captura claves para cursors
+          const k = cursor.key; // es [createdAt, id] o [textNorm, id]
+          if (!firstKey) firstKey = (indexName === 'byTextId')
+            ? { createdAt: val.createdAt, id: val.id }
+            : { createdAt: k[0], id: k[1] };
+
+          lastKey = (indexName === 'byTextId')
+            ? { createdAt: val.createdAt, id: val.id }
+            : { createdAt: k[0], id: k[1] };
+
+          cursor.continue();
+        } else {
+          // Alcanzado el límite
+          resolve({
+            items: out,
+            page: {
+              nextCursor: encodeCursor(lastKey),
+              prevCursor: encodeCursor(firstKey),
+              hasNext: true,
+              hasPrev: !!cObj,
+            },
+          });
+        }
+      };
+      req.onerror = () => reject(req.error);
+    })
+  );
+}
+
+export async function countItemsFiltered({ textPrefix = '', dateFrom = null, dateTo = null } = {}) {
+  const prefix = normalizeText(textPrefix);
+  const from = toTs(dateFrom) ?? 0;
+  const to = toTs(dateTo) ?? Number.MAX_SAFE_INTEGER;
+
+  // Estrategia: recorre por índice más selectivo
+  const useTextIndex = !!prefix;
+  const indexName = useTextIndex ? 'byTextId' : 'byCreatedAtId';
+
+  return withStore('readonly', (store) =>
+    new Promise((resolve, reject) => {
+      const index = store.index(indexName);
+      let range = null;
+
+      if (useTextIndex) {
+        range = IDBKeyRange.bound([prefix, ''], [prefix + '\uffff', '\uffff']);
+      } else {
+        range = IDBKeyRange.bound([from, ''], [to, '\uffff']);
+      }
+
+      let n = 0;
+      const req = index.openCursor(range, 'next');
+      req.onsuccess = () => {
+        const c = req.result;
+        if (!c) return resolve(n);
+        const val = c.value;
+        // Si mezclamos ambos filtros, aplica el que falta
+        if (useTextIndex) {
+          if (val.createdAt >= from && val.createdAt <= to) n++;
+        } else {
+          if (!prefix || val.textNorm.startsWith(prefix)) n++;
+        }
+        c.continue();
+      };
+      req.onerror = () => reject(req.error);
+    })
+  );
+}
+
+/* ===== Búsqueda rápida por prefijo (conservada) ===== */
+export async function findByTextPrefix(prefix) {
+  return queryItems({ textPrefix: prefix, limit: 100 }).then(r => r.items);
+}
+
+/* ===== Export/Import (sin cambios) ===== */
+
+export async function exportItems() {
+  const all = await getAllItems({ sortBy: 'createdAt', direction: 'asc' });
+  return {
+    exportedAt: new Date().toISOString(),
+    version: DB_VERSION,
+    items: all,
+  };
+}
+
+export async function importItems(payload, { merge = true } = {}) {
+  if (!payload || !Array.isArray(payload.items)) {
+    throw new Error('Formato de import no válido');
+  }
+  const incoming = payload.items;
+
+  await withStore('readwrite', async (store) => {
+    if (!merge) {
+      await new Promise((res, rej) => {
+        const r = store.clear();
+        r.onsuccess = () => res();
+        r.onerror = () => rej(r.error);
+      });
+    }
+
+    for (const raw of incoming) {
+      const item = {
+        id: raw.id || uuid(),
+        text: raw.text ?? '',
+        textNorm: normalizeText(raw.text ?? ''),
+        meta: raw.meta ?? {},
+        createdAt: raw.createdAt ?? Date.now(),
+        updatedAt: Date.now(),
+      };
+      await new Promise((res, rej) => {
+        const r = store.put(item);
+        r.onsuccess = () => res();
+        r.onerror = () => rej(r.error);
+      });
+    }
+  });
+}
