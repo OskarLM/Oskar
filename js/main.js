@@ -1,15 +1,15 @@
-/* ==========================
+/* =========================================================
    PIN V0.1 (hasheado + intentos + cooldown)
    Requiere utils.js (sha256, getAttempts, setAttempts, isInCooldown, setCooldown)
-========================== */
+========================================================= */
 
 // Estado interno del PIN
 let pinActual = "";
 
-// Compatibilidad con utils.js (nombres de claves)
-const KEY_PIN = (typeof PIN_STORAGE_KEY !== 'undefined') ? PIN_STORAGE_KEY : (typeof PIN_STORAGE_KEY !== 'undefined') ? PIN_STORAGE_KEY : 'pinHash_v1';
+// Clave de almacenamiento del hash del PIN (por defecto pinHash_v1)
+const KEY_PIN = (typeof PIN_STORAGE_KEY !== 'undefined') ? PIN_STORAGE_KEY : 'pinHash_v1';
 
-// Helpers con *fallback* (por si faltaran en utils.js)
+// Helpers con *fallback* (si no vinieran de utils.js por algún motivo)
 const _getAttempts  = (typeof getAttempts  === 'function') ? getAttempts  : () => parseInt(localStorage.getItem('pinAttempts_v1') || '0', 10);
 const _setAttempts  = (typeof setAttempts  === 'function') ? setAttempts  : (n) => localStorage.setItem('pinAttempts_v1', String(n));
 const _isInCooldown = (typeof isInCooldown === 'function') ? isInCooldown : (() => {
@@ -63,6 +63,7 @@ async function verifyAndUnlock(pinPlain) {
   const givenHash = await sha256(pinPlain);
   if (givenHash === savedHash) {
     _setAttempts(0);
+    // Limpia cooldown si usas una clave específica en utils
     if (typeof PIN_COOLDOWN_KEY !== 'undefined') localStorage.removeItem(PIN_COOLDOWN_KEY);
     unlock();
   } else {
@@ -124,16 +125,34 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-/* ==========================
-   Núcleo de datos + render (lista)
-========================== */
+/* =========================================================
+   Núcleo de datos + listas + render (lista)
+========================================================= */
 
+// Estado de movimientos
 let movimientos = JSON.parse(localStorage.getItem('movimientos') || '[]');
 let registrosVisibles = 25;
 
-const mesesLabel = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const origenBase = ["Ingreso","Gasto","Nómina"];
+// Catálogo base
+const mesesLabel  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const origenBase  = ["Ingreso","Gasto","Nómina"];
+const subBase = [
+  "Accesorios","Agua","Aita","Ajuar / Electrodomésticos","Alojamiento","Apuestas y juegos","Atracciones","Ayuntamiento",
+  "Barco","Cajero","Casa","Comida","Comisiones","Comunidad","Copas","Efectivo","Electrónica","Extraescolar","Farmacia",
+  "Filamento","Garaje","Gas","Gasolina","Herramientas","Ikastola","Impresora","Impuestos","Juguetes / Regalos",
+  "Libros / Material escolar","Luz","Mantenimiento","Medicamentos","Parking","Peaje","Préstamo","Reforma","Ropa",
+  "Septiembre","Seguro","Suscripción","Suscripciones","Teléfono","Tren","Varios"
+];
+const catBase     = ["Casa","Caravana","Coche","Compras","Efectivo","Escolar","Garaje","Restaurante","Vacaciones"];
+const NOMINA_CATS = ["Oskar","Josune"];
+const NOMINA_SUBS = [...mesesLabel];
 
+// Listas persistentes (extras)
+let catExtra   = JSON.parse(localStorage.getItem('categoriaExtra') || '[]');
+let subMaestra = JSON.parse(localStorage.getItem('subMaestra_v2') || '[]');
+if (!Array.isArray(subMaestra) || !subMaestra.length) subMaestra = subBase.slice();
+
+// Fallback de escape si por alguna razón no llegó desde utils.js
 const _esc = (typeof esc === 'function')
   ? esc
   : (s)=> String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -162,7 +181,7 @@ function init(){
   mostrar();
 }
 
-// Rellena selects de filtros a partir de datos
+// Rellena los filtros superiores a partir de los datos
 function actualizarListas(){
   const fC = document.getElementById("filtroCat");
   const fS = document.getElementById("filtroSub");
@@ -184,6 +203,32 @@ function actualizarListas(){
     fO.innerHTML = '<option value="TODOS">Ori: TODOS</option>';
     origenBase.forEach(o=>fO.add(new Option(o,o)));
   }
+}
+
+/* Rellena un <select> con base + extra + preselección + reglas Nómina */
+function llenar(id, base, extra, pre = "", opts = {}) {
+  const s = document.getElementById(id);
+  if (!s) return;
+
+  const origenActual = opts.origenActual || "";
+  s.innerHTML = `<option value="" disabled ${pre === "" ? 'selected' : ''}>Seleccionar...</option>`;
+
+  let values = [...new Set([...(base || []), ...(extra || [])])];
+
+  if (id === "categoria") {
+    if (origenActual !== "Nómina") values = values.filter(v => !NOMINA_CATS.includes(v));
+  }
+  if (id === "subcategoria") {
+    if (origenActual !== "Nómina") values = values.filter(v => !NOMINA_SUBS.includes(v));
+  }
+
+  values.sort((a,b)=>String(a).localeCompare(String(b),'es'))
+        .forEach(v => { s.add(new Option(v, v, false, v === pre)); });
+
+  if (pre && !values.includes(pre)) {
+    s.add(new Option(pre, pre, true, true));
+  }
+  if (id !== "origen") s.add(new Option("+", "+"));
 }
 
 // Pinta la lista según filtros
@@ -235,34 +280,58 @@ function mostrar(){
     `).join("");
 }
 
-/* ==========================
-   CRUD / UI mínimas
-========================== */
+
+/* =========================================================
+   CRUD / UI del formulario
+========================================================= */
 
 function abrirFormulario(id=null){
   const f = document.getElementById("form");
   const m = document.getElementById("movimientos");
   if (!f || !m) return;
+
   m.classList.add("hidden");
   f.classList.remove("hidden");
+
+  // ORIGEN
+  const selOrigen = document.getElementById("origen");
+  if (selOrigen) {
+    selOrigen.innerHTML = "";
+    origenBase.forEach(o => selOrigen.add(new Option(o, o)));
+  }
 
   if (id){
     const mov = movimientos.find(x => String(x.id) === String(id));
     if (mov){
       document.getElementById("editId").value = mov.id;
       document.getElementById("fecha").value = mov.f || new Date().toISOString().split("T")[0];
+
+      // Origen + listas dependientes
       document.getElementById("origen").value = mov.o || "";
-      document.getElementById("categoria").value = mov.c || "";
-      document.getElementById("subcategoria").value = mov.s || "";
+      const origenActual = document.getElementById("origen").value || "";
+
+      llenar("categoria", catBase, catExtra, mov.c || "", { origenActual });
+      if (mov.o === "Nómina") {
+        // Subcategoria: respetar valor (p.e. mes)
+        const s = document.getElementById("subcategoria");
+        s.innerHTML = "";
+        s.add(new Option(mov.s, mov.s, true, true));
+      } else {
+        llenar("subcategoria", subMaestra, [], mov.s || "", { origenActual });
+      }
+
       document.getElementById("importe").value = Math.abs(Number(mov.imp)||0);
       document.getElementById("descripcion").value = mov.d || "";
     }
   } else {
     document.getElementById("editId").value = "";
     document.getElementById("fecha").value = new Date().toISOString().split("T")[0];
-    document.getElementById("origen").value = origenBase[1]; // "Gasto"
-    document.getElementById("categoria").value = "";
-    document.getElementById("subcategoria").value = "";
+
+    document.getElementById("origen").value = origenBase[1] || "Gasto"; // por defecto
+    const origenActual = document.getElementById("origen").value || "";
+    llenar("categoria",   catBase,   catExtra,   "", { origenActual });
+    llenar("subcategoria", subMaestra, [],       "", { origenActual });
+
     document.getElementById("importe").value = "";
     document.getElementById("descripcion").value = "";
   }
@@ -292,14 +361,144 @@ function resetPagina(){ registrosVisibles = 25; window.scrollTo(0,0); }
 function ejecutarBackupRotativo(){ /* opcional */ }
 function resetTotal(){ if (confirm("¿BORRAR TODO?")) { localStorage.clear(); location.reload(); } }
 
-// Stubs para compatibilidad con tu HTML (no rompen si se usan)
-function abrirGraficos(){ /* aún no implementado en este núcleo; se mantiene lista */ }
-function manejarNuevo(el,tipo){ if (el && el.value === '+') { const n = prompt(`Nueva ${tipo}:`); if (n) el.value = n.trim(); else el.value = ""; } }
-function borrarElemento(tipo){ const sel = document.getElementById(tipo); if (sel) sel.value = ""; }
+// Stubs básicos para compatibilidad (si tu HTML los llama, no romperán)
+function abrirGraficos(){ /* pendiente: tu vista de gráficos */ }
 
-/* ==========================
+/* Añadir nueva categoría o subcategoría desde el "+" del select */
+function manejarNuevo(el, tipo){
+  if (!el || el.value !== "+") return;
+
+  let n = prompt(`Nueva ${tipo}:`);
+  if (!n) { el.value = ""; return; }
+  const pretty = (n || "").toString().trim();
+  if (!pretty) { el.value = ""; return; }
+
+  if (tipo === "categoria") {
+    // Evitar categorías de nómina como alta manual
+    if (NOMINA_CATS.includes(pretty)) {
+      alert("No puedes crear manualmente 'Oskar' o 'Josune'. Selecciona 'Nómina'.");
+      el.value = "";
+      return;
+    }
+    if (!catExtra.includes(pretty) && !catBase.includes(pretty)) {
+      catExtra.push(pretty);
+      localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+    }
+    const origenActual = document.getElementById("origen")?.value || "";
+    llenar("categoria", catBase, catExtra, pretty, { origenActual });
+  } else {
+    if (!subMaestra.includes(pretty)) {
+      subMaestra.push(pretty);
+      localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+    }
+    const origenActual = document.getElementById("origen")?.value || "";
+    llenar("subcategoria", subMaestra, [], pretty, { origenActual });
+  }
+}
+
+/* Borrar un valor añadido manualmente */
+function borrarElemento(tipo){
+  const select = document.getElementById(tipo);
+  if (!select) return;
+
+  const val = select.value;
+  if (!val) return;
+
+  if (tipo === 'categoria') {
+    const idx = catExtra.indexOf(val);
+    if (idx >= 0) {
+      catExtra.splice(idx,1);
+      localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+      const origenActual = document.getElementById("origen")?.value || "";
+      llenar('categoria', catBase, catExtra, "", { origenActual });
+    } else {
+      alert('Solo puedes borrar categorías añadidas manualmente.');
+    }
+  } else if (tipo === 'subcategoria') {
+    const idx = subMaestra.indexOf(val);
+    if (idx >= 0) {
+      subMaestra.splice(idx,1);
+      localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+      const origenActual = document.getElementById("origen")?.value || "";
+      llenar('subcategoria', subMaestra, [], "", { origenActual });
+    }
+  }
+}
+
+/* Reconfigura listas cuando cambia ORIGEN (Nómina vs resto) */
+document.addEventListener('change', (e)=>{
+  if (e.target && e.target.id === 'origen') {
+    const o = e.target.value;
+    if (o === "Nómina") {
+      // Subcategoría = mes de la fecha
+      const fVal = document.getElementById("fecha")?.value || new Date().toISOString().split("T")[0];
+      const mIdx = new Date(fVal + "T00:00:00").getMonth();
+
+      const s = document.getElementById("subcategoria");
+      s.innerHTML = "";
+      s.add(new Option(mesesLabel[mIdx], mesesLabel[mIdx], true, true));
+
+      // Categorías de nómina
+      const c = document.getElementById("categoria");
+      c.innerHTML = "";
+      ["Oskar","Josune"].forEach(v => c.add(new Option(v, v)));
+    } else {
+      llenar('categoria',   catBase,   catExtra,   "", { origenActual: o });
+      llenar('subcategoria', subMaestra, [],       "", { origenActual: o });
+    }
+  }
+}, true);
+
+
+/* =========================================================
+   GUARDAR (corregido)
+========================================================= */
+
+const guardar = () => {
+  const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
+  const v = Object.fromEntries(ids.map(id => [id, document.getElementById(id)?.value]));
+  const imp = parseFloat(v.importe);
+  if (!v.origen || !v.categoria || !v.subcategoria || isNaN(imp)) {
+    alert("Faltan datos");
+    return;
+  }
+  const m = {
+    id : v.editId || `id_${Date.now()}`,
+    f  : v.fecha,
+    o  : v.origen,
+    c  : v.categoria,
+    s  : v.subcategoria,
+    imp: v.origen === "Gasto" ? -Math.abs(imp) : Math.abs(imp),
+    d  : v.descripcion,
+    ts : Date.now()
+  };
+
+  // Registrar listas nuevas si procede (extras)
+  if (m.c && !catBase.includes(m.c) && !catExtra.includes(m.c) && !NOMINA_CATS.includes(m.c)) {
+    catExtra.push(m.c);
+    localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+  }
+  if (m.s && !subMaestra.includes(m.s) && !NOMINA_SUBS.includes(m.s)) {
+    subMaestra.push(m.s);
+    localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+  }
+
+  if (v.editId) {
+    const idx = movimientos.findIndex(x => x.id.toString() === v.editId.toString());
+    if (idx !== -1) movimientos[idx] = m;
+  } else {
+    movimientos.push(m);
+    if (movimientos.length % 15 === 0) ejecutarBackupRotativo();
+  }
+  localStorage.setItem('movimientos', JSON.stringify(movimientos));
+  volver();
+};
+window.guardar = guardar; // por si se llama desde onclick
+
+
+/* =========================================================
    EXPORT / IMPORT CSV
-========================== */
+========================================================= */
 
 function exportarCSV(){
   if (!movimientos || !movimientos.length) {
@@ -311,16 +510,12 @@ function exportarCSV(){
     const [y,m,d] = (iso||"").split("-");
     return (y && m && d) ? `${d}/${m}/${y}` : (iso||"");
   };
-  const toEuro = (n) => {
-    const val = (typeof n === "number" ? n : parseFloat(n || 0));
-    const s = Number.isFinite(val) ? val.toString() : "0";
-    return s.includes(".") ? s.replace(".", ",") : s;
-  };
   const csvCell = (v) => {
     let t = (v ?? "").toString().replace(/\r?\n/g, "⏎");
     if (/[;"\n]/.test(t)) t = '"' + t.replace(/"/g,'""') + '"';
     return t;
   };
+
   const headers = ["Fecha","Origen","Categoria","Subcategoria","Importe","Descripcion"].join(SEP);
   const rows = movimientos.map(m =>
     [toESDate(m.f), m.o||"", m.c||"", m.s||"", (Number(m.imp)||0), (m.d??"").trim()]
@@ -456,60 +651,29 @@ function importarCSV(e){
   reader.readAsText(file, 'UTF-8');
 }
 
-/* Exponer funciones al global para los handlers del HTML */
+
+/* =========================================================
+   Exposición global para handlers del HTML + autoinit
+========================================================= */
+
 window.init = init;
 window.mostrar = mostrar;
 window.actualizarListas = actualizarListas;
-window.importarCSV = importarCSV;
-window.exportarCSV = exportarCSV;
-window.volver = volver;
-window.abrirFormulario = abrirFormulario;
-window.eliminarRegistroActual = eliminarRegistroActual;
-window.resetPagina = resetPagina;
-window.resetTotal = resetTotal;
-window.abrirGraficos = abrirGraficos;
+window.llenar = llenar;
 window.manejarNuevo = manejarNuevo;
 window.borrarElemento = borrarElemento;
 
+window.importarCSV = importarCSV;
+window.exportarCSV = exportarCSV;
 
-/* ==========================
-   GUARDAR (corregido)
-========================== */
+window.volver = volver;
+window.abrirFormulario = abrirFormulario;
+window.eliminarRegistroActual = eliminarRegistroActual;
 
-// Corrección clave: construir v con sus claves (antes faltaba y rompía el script)
-const guardar = () => {
-  const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
-  const v = Object.fromEntries(ids.map(id => [id, document.getElementById(id)?.value]));
-  const imp = parseFloat(v.importe);
-  if (!v.origen || !v.categoria || !v.subcategoria || isNaN(imp)) {
-    alert("Faltan datos");
-    return;
-  }
-  const m = {
-    id : v.editId || `id_${Date.now()}`,
-    f  : v.fecha,
-    o  : v.origen,
-    c  : v.categoria,
-    s  : v.subcategoria,
-    imp: v.origen === "Gasto" ? -Math.abs(imp) : Math.abs(imp),
-    d  : v.descripcion,
-    ts : Date.now()
-  };
-  if (v.editId) {
-    const idx = movimientos.findIndex(x => x.id.toString() === v.editId.toString());
-    if (idx !== -1) movimientos[idx] = m;
-  } else {
-    movimientos.push(m);
-    if (movimientos.length % 15 === 0) ejecutarBackupRotativo();
-  }
-  localStorage.setItem('movimientos', JSON.stringify(movimientos));
-  volver();
-};
-window.guardar = guardar; // por si lo llamas desde onclick
+window.resetPagina = resetPagina;
+window.resetTotal = resetTotal;
+window.abrirGraficos = abrirGraficos;
 
-/* ==========================
-   Autoinit si ya estás desbloqueado
-========================== */
 document.addEventListener('DOMContentLoaded', ()=>{
   const m = document.getElementById("movimientos");
   if (m && m.dataset.permiso === "OK") {
