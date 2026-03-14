@@ -45,6 +45,7 @@ const normalizeKey = (s) => (s ?? "")
   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
   .replace(/[^\p{L}\p{N}]+/gu,' ')
   .replace(/\s+/g,' ').trim();
+
 const singularizeWordEs = (w) => {
   if (w.endsWith('iones')) return w.slice(0,-5)+'ion';
   if (w.endsWith('ces')) return w.slice(0,-3)+'z';
@@ -109,7 +110,7 @@ async function verifyAndUnlock(pinPlain) {
     const prev = getAttempts() + 1;
     setAttempts(prev);
     if (prev >= 5) {
-      setCooldown(60);
+      setCooldown(60); // 60s
       setAttempts(0);
       alert("Demasiados intentos fallidos. Bloqueo temporal de 60 segundos.");
     } else {
@@ -245,7 +246,7 @@ function mostrar() {
   else if (t <= (1400 * factor)) bD.style.color = "var(--success)";
   else bD.style.color = "var(--electric-blue)";
 
-  // === V1.0: Gestionar botones de la footer bar según modo ===
+  // === V1.0: footer dinámico ===
   const btnLeft  = document.querySelector(".footer-row .plus:nth-child(1)");
   const btnCenter= document.querySelector(".footer-row .plus:nth-child(2)");
   if (btnLeft)  btnLeft.onclick = null;
@@ -260,13 +261,13 @@ function mostrar() {
       btnLeft.onclick = () => setModo("lista");
     }
     if (btnCenter){
-      btnCenter.innerHTML = iconGraph2();   // ← aquí sustituimos “+” por “Gráficos 2”
+      btnCenter.innerHTML = iconGraph2(); // cambia + por “Gráficos 2”
       btnCenter.setAttribute("aria-label","Gráficos 2");
       btnCenter.onclick = () => setModo("graficos2");
     }
   } else if (modo === "graficos2") {
     if (btnLeft){
-      btnLeft.innerHTML = iconBack();
+      btnLeft.innerHTML = iconBack(); // volver a gráficos
       btnLeft.setAttribute("aria-label","Volver a gráficos");
       btnLeft.onclick = () => setModo("graficos");
     }
@@ -288,7 +289,7 @@ function mostrar() {
     }
   }
 
-  // === Render de la vista ===
+  // === Render
   if (modo === "graficos" || modo === "graficos2") {
     const listaDiv = document.getElementById("lista");
 
@@ -308,7 +309,7 @@ function mostrar() {
       renderizarGraficos2();
     }
   } else {
-    // LISTA original
+    // LISTA
     document.getElementById("lista").innerHTML = filtradosGlobal
       .slice(0, registrosVisibles)
       .map(m => `
@@ -367,10 +368,10 @@ const renderizarBarrasGraficos = (f) => {
 function renderizarGraficos2(){
   const lista = document.getElementById("lista");
 
-  // 1) Filtros: usar Ori/Cat/Sub; ignorar Mes/Año para mostrar SIEMPRE 13 meses
+  // 1) Filtros: usar Ori/Cat/Sub; ignorar Mes/Año para 13 meses siempre
   const fs = ["filtroMes","filtroAño","filtroCat","filtroSub","filtroOri"].map(id => document.getElementById(id).value);
 
-  // 2) Últimos 13 meses (incluye actual)
+  // 2) Últimos 13 meses
   const hoy = new Date();
   const meses = [];
   for (let i = 12; i >= 0; i--) {
@@ -379,7 +380,7 @@ function renderizarGraficos2(){
     meses.push({ d, key });
   }
 
-  // 3) Base filtrada por Ori/Cat/Sub + filtro Casa
+  // 3) Base filtrada por Ori/Cat/Sub + “Casa”
   const filtraOtros = (m) => {
     const cC = fs[2] === "TODAS" || m.c === fs[2];
     const cS = fs[3] === "TODAS" || m.s === fs[3];
@@ -397,11 +398,11 @@ function renderizarGraficos2(){
     sumaMes.set(k, (sumaMes.get(k) || 0) + (Number(mov.imp) || 0));
   }
 
-  // 5) Escala y colores (mismos umbrales que tu gráfico de barras)
+  // 5) Escala y colores (umbrales 50/200/500 como en barras)
   const valores = meses.map(m => sumaMes.get(m.key) || 0);
   const maxAbs = Math.max(...valores.map(v => Math.abs(v)), 1);
   const alto = 180, mitad = alto/2, maxDespl = Math.max(mitad - 16, 40);
-  const baseTop = mitad - 9; // centro del cuadrado
+  const baseTop = mitad - 9;
 
   const colorPositivo = (v) => {
     const abs = Math.abs(v);
@@ -439,7 +440,7 @@ function renderizarGraficos2(){
 }
 
 /* ==========================
-   FORMULARIO / CRUD (tu original)
+   FORMULARIO / CRUD
 ========================== */
 const llenar = (id, base, extra, pre = "", opts = {}) => {
   const s = document.getElementById(id);
@@ -504,7 +505,8 @@ const abrirFormulario = (id = null) => {
 
 const guardar = () => {
   const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
-  const v = ids.reduce((acc,id)=>({ ...acc, document.getElementById(id).value }),{});
+  // ✅ FIX: propiedad computada correcta
+  const v = ids.reduce((acc,id)=>({ ...acc, [id]: document.getElementById(id)?.value }),{});
   const imp = parseFloat(v.importe);
   if (!v.origen || !v.categoria || !v.subcategoria || isNaN(imp)) return alert("Faltan datos");
 
@@ -537,40 +539,39 @@ const volver = () => {
   mostrar();
 };
 
+/* ===== “+ Añadir nuevo…” SIN prompt(): el valor lo entrega el popup Premium ===== */
 const manejarNuevo = (el, tipo) => {
-  if (el.value === "+") {
-    let n = prompt(`Nueva ${tipo}:`);
-    if (!n) { el.value = ""; return; }
-    n = n.trim();
-    const pretty = mostrarBonito(n);
-    const keyNew = canonicalizeLabel(pretty);
+  if (el.value !== "+") return;
 
-    if (tipo === "categoria") {
-      const catIdx = buildCanonIndex(catBase, catExtra);
-      if (NOMINA_CATS.some(x => canonicalizeLabel(x) === keyNew)) {
-        alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina' y usa el popup.");
-        el.value = "";
-        return;
-      }
-      if (catIdx.has(keyNew)) {
-        const existente = catIdx.get(keyNew);
-        llenar("categoria", catBase, catExtra, existente, { origenActual: document.getElementById("origen").value || "" });
-      } else {
-        catExtra.push(pretty);
-        localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-        llenar("categoria", catBase, catExtra, pretty, { origenActual: document.getElementById("origen").value || "" });
-      }
-    } else {
-      const subIdx = buildCanonIndex(subMaestra, []);
-      if (subIdx.has(keyNew)) {
-        const existente = subIdx.get(keyNew);
-        llenar("subcategoria", subMaestra, [], existente, { origenActual: document.getElementById("origen").value || "" });
-      } else {
-        subMaestra.push(pretty);
-        localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-        llenar("subcategoria", subMaestra, [], pretty, { origenActual: document.getElementById("origen").value || "" });
-      }
+  // El popup Premium coloca el texto en data-atributo
+  let n = el.dataset.nuevoValor || "";
+  el.dataset.nuevoValor = ""; // limpiar para siguiente uso
+  if (!n) { el.value = ""; return; } // sin fallback a prompt para evitar alertas del navegador
+
+  const pretty = mostrarBonito(n.trim());
+  const keyNew = canonicalizeLabel(pretty);
+
+  if (tipo === "categoria") {
+    const catIdx = buildCanonIndex(catBase, catExtra);
+    if (NOMINA_CATS.some(x => canonicalizeLabel(x) === keyNew)) {
+      alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina' y usa el popup.");
+      el.value = "";
+      return;
     }
+    if (!catIdx.has(keyNew)) {
+      catExtra.push(pretty);
+      localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+    }
+    const origenActual = document.getElementById("origen").value || "";
+    llenar("categoria", catBase, catExtra, pretty, { origenActual });
+  } else {
+    const subIdx = buildCanonIndex(subMaestra, []);
+    if (!subIdx.has(keyNew)) {
+      subMaestra.push(pretty);
+      localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+    }
+    const origenActual = document.getElementById("origen").value || "";
+    llenar("subcategoria", subMaestra, [], pretty, { origenActual });
   }
 };
 
@@ -897,6 +898,7 @@ const importarCSV = (e) => {
 
 /* ==========================
    POPUP PREMIUM + “Añadir nuevo”
+   (Entrega el valor por dataset; sin prompt())
 ========================== */
 (function(){
   const lanzarPopupPremium = (el,tipo) => {
@@ -908,16 +910,21 @@ const importarCSV = (e) => {
       <button class="btn-silver" id="cancel_premium">CANCELAR</button>
     </div>`;
     document.body.appendChild(overlay);
+    const close = ()=> overlay.remove();
     document.getElementById('confirm_premium').onclick=()=>{
-      let n=document.getElementById('val_premium').value.trim();
+      const n=(document.getElementById('val_premium').value||"").trim();
       if(n){
-        const select=el; select.value="+";
-        overlay.remove();
-        setTimeout(()=>manejarNuevo(select,select.id),0);
-      } else overlay.remove();
+        const select=el;
+        // Guardamos el valor para manejarNuevo()
+        select.dataset.nuevoValor = n;
+        select.value = "+";
+        close();
+        setTimeout(()=>manejarNuevo(select, select.id),0);
+      } else close();
     };
-    document.getElementById('cancel_premium').onclick=()=>{ el.value=""; overlay.remove(); };
+    document.getElementById('cancel_premium').onclick=()=>{ el.value=""; close(); };
   };
+
   document.addEventListener('change',(e)=>{
     if((e.target.id==='categoria'||e.target.id==='subcategoria') && e.target.value === "+"){
       e.stopImmediatePropagation(); lanzarPopupPremium(e.target,e.target.id);
@@ -938,10 +945,11 @@ const importarCSV = (e) => {
       <button class="btn-nomina btn-cancel" id="btn_cancel_nom">CANCELAR</button>
     </div>`;
     document.body.appendChild(overlay);
-    document.getElementById('btn_oskar').onclick=()=>{ document.getElementById("categoria").innerHTML=`<option value="Oskar" selected>Oskar</option>`; overlay.remove(); };
-    document.getElementById('btn_josune').onclick=()=>{ document.getElementById("categoria").innerHTML=`<option value="Josune" selected>Josune</option>`; overlay.remove(); };
+    const close = ()=> overlay.remove();
+    document.getElementById('btn_oskar').onclick=()=>{ document.getElementById("categoria").innerHTML=`<option value="Oskar" selected>Oskar</option>`; close(); };
+    document.getElementById('btn_josune').onclick=()=>{ document.getElementById("categoria").innerHTML=`<option value="Josune" selected>Josune</option>`; close(); };
     document.getElementById('btn_cancel_nom').onclick=()=>{ document.getElementById("origen").value="Gasto";
-      llenar('categoria',catBase,catExtra,"",{origenActual:"Gasto"}); llenar('subcategoria',subMaestra,[], "",{origenActual:"Gasto"}); overlay.remove(); };
+      llenar('categoria',catBase,catExtra,"",{origenActual:"Gasto"}); llenar('subcategoria',subMaestra,[], "",{origenActual:"Gasto"}); close(); };
   };
 
   document.addEventListener('change',(e)=>{
