@@ -347,38 +347,39 @@ const volver = () => {
 
 const manejarNuevo = (el, tipo) => {
   if (el.value === "+") {
-    let n = prompt(`Nueva ${tipo}:`);
+    // El popup premium se encargará de pedir el texto.
+    // Esta función solo procesa el valor recibido.
+    const n = el.dataset.nuevoValor;    // ← asignado por popupPremium
+    el.dataset.nuevoValor = "";         // ← limpia
+
     if (!n) { el.value = ""; return; }
-    n = n.trim();
+
     const pretty = mostrarBonito(n);
     const keyNew = canonicalizeLabel(pretty);
 
     if (tipo === "categoria") {
       const catIdx = buildCanonIndex(catBase, catExtra);
-      // Bloqueo nómina manual
       if (NOMINA_CATS.some(x => canonicalizeLabel(x) === keyNew)) {
-        alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina' y usa el popup.");
+        alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina'.");
         el.value = "";
         return;
       }
-      if (catIdx.has(keyNew)) {
-        const existente = catIdx.get(keyNew);
-        llenar("categoria", catBase, catExtra, existente, { origenActual: document.getElementById("origen").value || "" });
-      } else {
+      if (!catIdx.has(keyNew)) {
         catExtra.push(pretty);
         localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-        llenar("categoria", catBase, catExtra, pretty, { origenActual: document.getElementById("origen").value || "" });
       }
-    } else {
+      const origenActual = document.getElementById("origen").value || "";
+      llenar("categoria", catBase, catExtra, pretty, { origenActual });
+    }
+
+    if (tipo === "subcategoria") {
       const subIdx = buildCanonIndex(subMaestra, []);
-      if (subIdx.has(keyNew)) {
-        const existente = subIdx.get(keyNew);
-        llenar("subcategoria", subMaestra, [], existente, { origenActual: document.getElementById("origen").value || "" });
-      } else {
+      if (!subIdx.has(keyNew)) {
         subMaestra.push(pretty);
         localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-        llenar("subcategoria", subMaestra, [], pretty, { origenActual: document.getElementById("origen").value || "" });
       }
+      const origenActual = document.getElementById("origen").value || "";
+      llenar("subcategoria", subMaestra, [], pretty, { origenActual });
     }
   }
 };
@@ -733,7 +734,8 @@ const importarCSV = (e) => {
       if(n){
         const select=el; select.value="+";
         overlay.remove();
-        setTimeout(()=>manejarNuevo(select,select.id),0);
+        select.dataset.nuevoValor = n;
+        setTimeout(()=>manejarNuevo(select, select.id), 0);
       } else overlay.remove();
     };
     document.getElementById('cancel_premium').onclick=()=>{ el.value=""; overlay.remove(); };
