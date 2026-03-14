@@ -1,77 +1,115 @@
-/* =========================================================
-   PIN V0.1 (hasheado + intentos + cooldown)
-   Requiere utils.js (sha256, getAttempts, setAttempts, isInCooldown, setCooldown)
-========================================================= */
+// === main.js ===
 
-// Estado interno del PIN
+/* ==========================
+   BASES Y ESTADO GLOBAL
+========================== */
+const subBase = [
+  "Accesorios","Agua","Aita","Ajuar / Electrodomésticos","Alojamiento","Apuestas y juegos","Atracciones","Ayuntamiento",
+  "Barco","Cajero","Casa","Comida","Comisiones","Comunidad","Copas","Efectivo","Electrónica","Extraescolar","Farmacia",
+  "Filamento","Garaje","Gas","Gasolina","Herramientas","Ikastola","Impresora","Impuestos","Juguetes / Regalos",
+  "Libros / Material escolar","Luz","Mantenimiento","Medicamentos","Parking","Peaje","Préstamo","Reforma","Ropa",
+  "Septiembre","Seguro","Suscripción","Suscripciones","Teléfono","Tren","Varios"
+];
+const catBase = ["Casa","Caravana","Coche","Compras","Efectivo","Escolar","Garaje","Restaurante","Vacaciones"];
+const mesesLabel = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const origenBase = ["Ingreso","Gasto","Nómina"];
+// Nómina
+const NOMINA_CATS = ["Oskar","Josune"];
+const NOMINA_SUBS = [...mesesLabel];
+
+let movimientos = JSON.parse(localStorage.getItem('movimientos')) || [];
+let catExtra = JSON.parse(localStorage.getItem('categoriaExtra')) || [];
+let subMaestra = JSON.parse(localStorage.getItem('subMaestra_v2')) || subBase.slice();
+let nBackup = parseInt(localStorage.getItem('nBackup')) || 1;
+
+let registrosVisibles = 25;
+let filtradosGlobal = [];
 let pinActual = "";
 
-// Clave de almacenamiento del hash del PIN (por defecto pinHash_v1)
-const KEY_PIN = (typeof PIN_STORAGE_KEY !== 'undefined') ? PIN_STORAGE_KEY : 'pinHash_v1';
-
-// Helpers con *fallback* (si no vinieran de utils.js por algún motivo)
-const _getAttempts  = (typeof getAttempts  === 'function') ? getAttempts  : () => parseInt(localStorage.getItem('pinAttempts_v1') || '0', 10);
-const _setAttempts  = (typeof setAttempts  === 'function') ? setAttempts  : (n) => localStorage.setItem('pinAttempts_v1', String(n));
-const _isInCooldown = (typeof isInCooldown === 'function') ? isInCooldown : (() => {
-  const v = parseInt(localStorage.getItem('pinCooldownUntil_v1') || '0', 10);
-  return Date.now() < v ? (v - Date.now()) : 0;
-});
-const _setCooldown  = (typeof setCooldown  === 'function') ? setCooldown  : ((sec) => {
-  const until = Date.now() + sec * 1000;
-  localStorage.setItem('pinCooldownUntil_v1', String(until));
-});
-
-// Crea hash por defecto (7143) si no existe
+// Garantiza hash de PIN por defecto ("7143") en primer arranque
 async function ensureDefaultPinHash() {
-  try {
-    if (!localStorage.getItem(KEY_PIN)) {
-      const h = await sha256("7143");
-      localStorage.setItem(KEY_PIN, h);
-    }
-  } catch (e) {
-    console.error("[PIN] ensureDefaultPinHash error:", e);
+  const pinHash = localStorage.getItem(PIN_STORAGE_KEY);
+  if (!pinHash) {
+    const h = await sha256("7143");
+    localStorage.setItem(PIN_STORAGE_KEY, h);
   }
 }
 
-// Puntitos del overlay
-function updateDots() {
-  document.querySelectorAll('.pin-dots .dot').forEach((d, i) => {
-    d.classList.toggle('filled', i < pinActual.length);
-  });
-}
-function clearPin() { pinActual = ""; updateDots(); }
+/* ==========================
+   UTILIDADES DE NORMALIZACIÓN
+========================== */
+const normalizeKey = (s) => (s ?? "")
+  .toString().trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[^\p{L}\p{N}]+/gu,' ')
+  .replace(/\s+/g,' ').trim();
 
-// Desbloquear app
-function unlock() {
-  const overlay = document.getElementById("authOverlay");
-  if (overlay) overlay.style.display = "none";
+const singularizeWordEs = (w) => {
+  if (w.endsWith('iones')) return w.slice(0,-5)+'ion';
+  if (w.endsWith('ces')) return w.slice(0,-3)+'z';
+  if (w.endsWith('es')) return w.slice(0,-2);
+  if (/[aeiou]s$/.test(w)) return w.slice(0,-1);
+  return w;
+};
+const canonicalizeLabel = (s) => {
+  const raw = normalizeKey(s);
+  return raw
+    .split(/([\/-])/g)
+    .map(tok => (tok==='/' || tok==='-') ? tok :
+      tok.split(' ').map(singularizeWordEs).join(' '))
+    .join(' ')
+    .replace(/\s*\/\s*/g,'/')
+    .replace(/\s*-\s*/g,'-')
+    .trim();
+};
+const mostrarBonito = (s) => {
+  const t = (s ?? '').toString().trim();
+  if (!t) return t;
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+};
+const buildCanonIndex = (preferida=[], secundaria=[]) => {
+  const map = new Map();
+  const add = (v) => { const k = canonicalizeLabel(v); if (!map.has(k)) map.set(k, v); };
+  preferida.forEach(add); secundaria.forEach(add);
+  return map;
+};
+
+/* ==========================
+   SEGURIDAD (PIN + Biometría)
+========================== */
+const updateDots = () => {
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('filled', i < pinActual.length));
+};
+const clearPin = () => { pinActual = ""; updateDots(); };
+
+const unlock = () => {
+  document.getElementById("authOverlay").style.display = "none";
   const m = document.getElementById("movimientos");
-  if (m) { m.classList.remove("hidden"); m.dataset.permiso = "OK"; }
-  if (typeof init === 'function') { try { init(); } catch(e){ console.error("init() error:", e); } }
-}
+  m.classList.remove("hidden");
+  m.dataset.permiso = "OK";
+  init();
+};
 
-// Verificar PIN con hash + control de intentos
 async function verifyAndUnlock(pinPlain) {
-  const remainMs = _isInCooldown();
+  const remainMs = isInCooldown();
   if (remainMs > 0) {
     const s = Math.ceil(remainMs / 1000);
     alert(`Has superado el número de intentos. Espera ${s} s e inténtalo de nuevo.`);
     return;
   }
   await ensureDefaultPinHash();
-  const savedHash = localStorage.getItem(KEY_PIN);
+  const currentHash = localStorage.getItem(PIN_STORAGE_KEY);
   const givenHash = await sha256(pinPlain);
-  if (givenHash === savedHash) {
-    _setAttempts(0);
-    // Limpia cooldown si usas una clave específica en utils
-    if (typeof PIN_COOLDOWN_KEY !== 'undefined') localStorage.removeItem(PIN_COOLDOWN_KEY);
+  if (givenHash === currentHash) {
+    setAttempts(0);
+    localStorage.removeItem(PIN_COOLDOWN_KEY);
     unlock();
   } else {
-    const prev = _getAttempts() + 1;
-    _setAttempts(prev);
+    const prev = getAttempts() + 1;
+    setAttempts(prev);
     if (prev >= 5) {
-      _setCooldown(60);
-      _setAttempts(0);
+      setCooldown(60); // 60s de bloqueo
+      setAttempts(0);
       alert("Demasiados intentos fallidos. Bloqueo temporal de 60 segundos.");
     } else {
       alert("PIN incorrecto");
@@ -79,11 +117,9 @@ async function verifyAndUnlock(pinPlain) {
   }
 }
 
-// Pulsación de tecla PIN (usada por onclick del HTML)
-async function pressPin(n) {
-  const remain = _isInCooldown();
-  if (remain > 0) {
-    const s = Math.ceil(remain / 1000);
+const pressPin = async (n) => {
+  if (isInCooldown() > 0) {
+    const s = Math.ceil(isInCooldown() / 1000);
     alert(`Bloqueado temporalmente. Espera ${s} s.`);
     return;
   }
@@ -97,371 +133,188 @@ async function pressPin(n) {
       verifyAndUnlock(candidate);
     }
   }
-}
+};
 
-// Biometría (stub seguro)
-async function biometricAuth() {
+const biometricAuth = async () => {
   try {
     if (!window.isSecureContext || !window.PublicKeyCredential) {
       alert("Biometría no disponible (requiere HTTPS y dispositivo compatible).");
       return;
     }
+    // WebAuthn real no implementado: no desbloqueamos.
     alert("Biometría no implementada aún.");
   } catch (e) {
     console.error(e);
     alert("Error de biometría");
   }
-}
+};
 
-// Exponer para los onclick inline del HTML
-window.pressPin = pressPin;
-window.clearPin = clearPin;
-window.biometricAuth = biometricAuth;
-
-// Preparación al cargar
+// Asegura hash por defecto al cargar
 document.addEventListener('DOMContentLoaded', () => {
   ensureDefaultPinHash().catch(console.error);
-  updateDots();
 });
 
+/* ==========================
+   VISTA LISTA / GRÁFICOS
+========================== */
+function mostrar() {
+  const movDiv = document.getElementById("movimientos");
+  if (!movDiv || movDiv.dataset.permiso !== "OK") return;
 
-/* =========================================================
-   Núcleo de datos + listas + render (lista)
-========================================================= */
+  const fs = ["filtroMes","filtroAño","filtroCat","filtroSub","filtroOri"].map(id => document.getElementById(id).value);
 
-// Estado de movimientos
-let movimientos = JSON.parse(localStorage.getItem('movimientos') || '[]');
-let registrosVisibles = 25;
+  let t = 0;
+  filtradosGlobal = movimientos
+    .filter(m => {
+      const d = m.f.split("-");
+      const cM = fs[0] === "TODOS" || (parseInt(d[1]) - 1).toString() === fs[0];
+      const cA = fs[1] === "TODOS" || d[0] === fs[1];
+      const cC = fs[2] === "TODAS" || m.c === fs[2];
+      const cS = fs[3] === "TODAS" || m.s === fs[3];
+      const cO = fs[4] === "TODOS" || m.o === fs[4];
+      return cM && cA && cC && cS && cO;
+    })
+    .sort((a,b) => new Date(b.f) - new Date(a.f));
 
-// Catálogo base
-const mesesLabel  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const origenBase  = ["Ingreso","Gasto","Nómina"];
-const subBase = [
-  "Accesorios","Agua","Aita","Ajuar / Electrodomésticos","Alojamiento","Apuestas y juegos","Atracciones","Ayuntamiento",
-  "Barco","Cajero","Casa","Comida","Comisiones","Comunidad","Copas","Efectivo","Electrónica","Extraescolar","Farmacia",
-  "Filamento","Garaje","Gas","Gasolina","Herramientas","Ikastola","Impresora","Impuestos","Juguetes / Regalos",
-  "Libros / Material escolar","Luz","Mantenimiento","Medicamentos","Parking","Peaje","Préstamo","Reforma","Ropa",
-  "Septiembre","Seguro","Suscripción","Suscripciones","Teléfono","Tren","Varios"
-];
-const catBase     = ["Casa","Caravana","Coche","Compras","Efectivo","Escolar","Garaje","Restaurante","Vacaciones"];
-const NOMINA_CATS = ["Oskar","Josune"];
-const NOMINA_SUBS = [...mesesLabel];
+  filtradosGlobal.forEach(m => t += m.imp);
 
-// Listas persistentes (extras)
-let catExtra   = JSON.parse(localStorage.getItem('categoriaExtra') || '[]');
-let subMaestra = JSON.parse(localStorage.getItem('subMaestra_v2') || '[]');
-if (!Array.isArray(subMaestra) || !subMaestra.length) subMaestra = subBase.slice();
+  const factor = (fs[0] === "TODOS") ? 12 : 1;
+  const bD = document.getElementById("balance");
+  bD.innerText = t.toFixed(2) + " €";
+  if (t < 0) bD.style.color = "var(--danger)";
+  else if (t <= (750 * factor)) bD.style.color = "var(--warning)";
+  else if (t <= (1400 * factor)) bD.style.color = "var(--success)";
+  else bD.style.color = "var(--electric-blue)";
 
-// Fallback de escape si por alguna razón no llegó desde utils.js
-const _esc = (typeof esc === 'function')
-  ? esc
-  : (s)=> String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-// Inicialización básica de filtros y datos
-function init(){
-  const hoy = new Date();
-
-  // Mes
-  const fM = document.getElementById("filtroMes");
-  if (fM) {
-    fM.innerHTML = '<option value="TODOS">Mes: TODOS</option>';
-    mesesLabel.forEach((m, i) => fM.add(new Option(m, i)));
-    fM.value = hoy.getMonth();
-  }
-
-  // Año
-  const fA = document.getElementById("filtroAño");
-  if (fA) {
-    fA.innerHTML = '<option value="TODOS">Año: TODOS</option>';
-    for (let a = 2020; a <= 2030; a++) fA.add(new Option(a, a));
-    fA.value = hoy.getFullYear();
-  }
-
-  actualizarListas();
-  mostrar();
-}
-
-// Rellena los filtros superiores a partir de los datos
-function actualizarListas(){
-  const fC = document.getElementById("filtroCat");
-  const fS = document.getElementById("filtroSub");
-  const fO = document.getElementById("filtroOri");
-
-  const setSel = (sel, arr, titulo) => {
-    if (!sel) return;
-    sel.innerHTML = `<option value="${titulo === 'Ori' ? 'TODOS':'TODAS'}">${titulo}: ${titulo==='Ori'?'TODOS':'TODAS'}</option>`;
-    [...new Set(arr.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es'))
-      .forEach(v => sel.add(new Option(v, v)));
-  };
-
-  const cats = movimientos.map(m=>m.c||'');
-  const subs = movimientos.map(m=>m.s||'');
-  setSel(fC, cats, 'Cat');
-  setSel(fS, subs, 'Sub');
-
-  if (fO) {
-    fO.innerHTML = '<option value="TODOS">Ori: TODOS</option>';
-    origenBase.forEach(o=>fO.add(new Option(o,o)));
+  if (movDiv.dataset.modo === "graficos") {
+    renderizarBarrasGraficos(factor);
+  } else {
+    document.getElementById("lista").innerHTML = filtradosGlobal
+      .slice(0, registrosVisibles)
+      .map(m => `
+      <div class='card' onclick="abrirFormulario('${m.id}')" style="border-left-color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">
+        <div class="meta">${esc(m.f.split("-").reverse().join("/"))} • ${esc(m.o)}</div>
+        <b>${esc(m.c)} - ${esc(m.s)}</b>
+        ${m.d ? `<div style="font-size:12px;opacity:.8">${esc(m.d)}</div>` : ''}
+        <div class="monto" style="color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">${m.imp.toFixed(2)} €</div>
+      </div>`).join("");
+    document.getElementById("loader").style.display = "none";
   }
 }
 
-/* Rellena un <select> con base + extra + preselección + reglas Nómina */
-function llenar(id, base, extra, pre = "", opts = {}) {
+const renderizarBarrasGraficos = (f) => {
+  const lista = document.getElementById("lista");
+  const totales = filtradosGlobal
+    .filter(m => m.imp < 0)
+    .reduce((acc,m) => { acc[m.c] = (acc[m.c] || 0) + Math.abs(m.imp); return acc; }, {});
+  const max = Math.max(...Object.values(totales), 1);
+
+  let html = `<h2 style="color:var(--primary);font-size:18px;text-align:center">ANÁLISIS DE GASTO</h2>
+  <div style="display:flex;justify-content:center;gap:15px;margin-bottom:25px;font-size:19px;font-weight:900">
+    <span style="color:var(--electric-blue)">0-${50*f}€</span>
+    <span style="color:var(--success)">${200*f}€</span>
+    <span style="color:var(--warning)">${500*f}€</span>
+    <span style="color:var(--danger)">+</span>
+  </div>`;
+  lista.innerHTML = html + Object.entries(totales).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>{
+    const esCasa = cat.toLowerCase().includes("compra casa");
+    const t1 = Math.min(val, 50*f),
+          t2 = val > 50*f ? Math.min(val - 50*f ,150*f) : 0,
+          t3 = val > 200*f ? Math.min(val - 200*f,300*f) : 0,
+          t4 = val > 500*f ? (val - 500*f) : 0;
+    return `<div class="card" style="border:none;background:transparent">
+      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
+        <span>${esc(cat)}</span><b>${val.toFixed(2)} €</b>
+      </div>
+      <div style="width:${(val/max)*100}%;height:16px;display:flex;background:#000;border-radius:8px;overflow:hidden;border:1px solid rgba(212,175,55,.2)">
+        ${esCasa
+          ? `<div style="width:100%;background:var(--success)"></div>`
+          : `<div style="width:${(t1/val)*100}%;background:var(--electric-blue)"></div>
+             <div style="width:${(t2/val)*100}%;background:var(--success)"></div>
+             <div style="width:${(t3/val)*100}%;background:var(--warning)"></div>
+             <div style="width:${(t4/val)*100}%;background:var(--danger)"></div>`
+        }
+      </div>
+    </div>`;
+  }).join("");
+};
+
+/* ==========================
+   FORMULARIO / CRUD
+========================== */
+const llenar = (id, base, extra, pre = "", opts = {}) => {
   const s = document.getElementById(id);
-  if (!s) return;
-
   const origenActual = opts.origenActual || "";
   s.innerHTML = `<option value="" disabled ${pre === "" ? 'selected' : ''}>Seleccionar...</option>`;
-
-  let values = [...new Set([...(base || []), ...(extra || [])])];
-
+  let values = [...new Set([...base, ...extra])];
   if (id === "categoria") {
-    if (origenActual !== "Nómina") values = values.filter(v => !NOMINA_CATS.includes(v));
+    const ocultarNominaCats = origenActual !== "Nómina";
+    if (ocultarNominaCats) values = values.filter(v => !NOMINA_CATS.includes(v));
   }
   if (id === "subcategoria") {
-    if (origenActual !== "Nómina") values = values.filter(v => !NOMINA_SUBS.includes(v));
+    const ocultarMeses = origenActual !== "Nómina";
+    if (ocultarMeses) values = values.filter(v => !NOMINA_SUBS.includes(v));
   }
-
-  values.sort((a,b)=>String(a).localeCompare(String(b),'es'))
-        .forEach(v => { s.add(new Option(v, v, false, v === pre)); });
-
+  values.sort((a,b)=>a.localeCompare(b,'es')).forEach(v=>{
+    s.innerHTML += `<option value="${v}" ${v === pre ? 'selected' : ''}>${v}</option>`;
+  });
   if (pre && !values.includes(pre)) {
-    s.add(new Option(pre, pre, true, true));
+    s.innerHTML += `<option value="${pre}" selected hidden>${pre}</option>`;
   }
-  if (id !== "origen") s.add(new Option("+", "+"));
-}
+  if (id !== "origen") s.innerHTML += `<option value="+">+ Añadir nuevo...</option>`;
+};
 
-// Pinta la lista según filtros
-function mostrar(){
-  const cont = document.getElementById("lista");
-  const movDiv = document.getElementById("movimientos");
-  if (!cont || !movDiv || movDiv.dataset.permiso !== "OK") return;
+const abrirFormulario = (id = null) => {
+  const f = document.getElementById("form"),
+        mDiv= document.getElementById("movimientos"),
+        btnD= document.getElementById("btnEliminarRegistro");
 
-  const fMes = document.getElementById("filtroMes")?.value ?? "TODOS";
-  const fAño = document.getElementById("filtroAño")?.value ?? "TODOS";
-  const fCat = document.getElementById("filtroCat")?.value ?? "TODAS";
-  const fSub = document.getElementById("filtroSub")?.value ?? "TODAS";
-  const fOri = document.getElementById("filtroOri")?.value ?? "TODOS";
-
-  let total = 0;
-  const filtrados = movimientos
-    .filter(m=>{
-      const [y,mm] = (m.f||'').split('-');
-      const okMes = fMes === "TODOS" || String(parseInt(mm,10)-1) === fMes;
-      const okAño = fAño === "TODOS" || y === fAño;
-      const okCat = fCat === "TODAS" || m.c === fCat;
-      const okSub = fSub === "TODAS" || m.s === fSub;
-      const okOri = fOri === "TODOS" || m.o === fOri;
-      return okMes && okAño && okCat && okSub && okOri;
-    })
-    .sort((a,b)=> new Date(b.f) - new Date(a.f));
-
-  filtrados.forEach(m=> total += Number(m.imp)||0);
-
-  // Balance
-  const bD = document.getElementById("balance");
-  if (bD){
-    bD.innerText = total.toFixed(2) + " €";
-    if (total < 0) bD.style.color = "var(--danger)";
-    else if (total <= 750) bD.style.color = "var(--warning)";
-    else if (total <= 1400) bD.style.color = "var(--success)";
-    else bD.style.color = "var(--electric-blue)";
-  }
-
-  cont.innerHTML = filtrados
-    .slice(0, registrosVisibles)
-    .map(m => `
-      <div class='card' onclick="abrirFormulario('${_esc(m.id)}')" style="border-left-color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">
-        <div class="meta">${_esc((m.f||'').split("-").reverse().join("/"))} • ${_esc(m.o||'')}</div>
-        <b>${_esc(m.c||'')} - ${_esc(m.s||'')}</b>
-        ${m.d ? `<div style="font-size:12px;opacity:.8">${_esc(m.d)}</div>` : ''}
-        <div class="monto" style="color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">${(Number(m.imp)||0).toFixed(2)} €</div>
-      </div>
-    `).join("");
-}
-
-
-/* =========================================================
-   CRUD / UI del formulario
-========================================================= */
-
-function abrirFormulario(id=null){
-  const f = document.getElementById("form");
-  const m = document.getElementById("movimientos");
-  if (!f || !m) return;
-
-  m.classList.add("hidden");
-  f.classList.remove("hidden");
-
-  // ORIGEN
-  const selOrigen = document.getElementById("origen");
-  if (selOrigen) {
-    selOrigen.innerHTML = "";
-    origenBase.forEach(o => selOrigen.add(new Option(o, o)));
-  }
-
-  if (id){
-    const mov = movimientos.find(x => String(x.id) === String(id));
-    if (mov){
-      document.getElementById("editId").value = mov.id;
-      document.getElementById("fecha").value = mov.f || new Date().toISOString().split("T")[0];
-
-      // Origen + listas dependientes
-      document.getElementById("origen").value = mov.o || "";
-      const origenActual = document.getElementById("origen").value || "";
-
-      llenar("categoria", catBase, catExtra, mov.c || "", { origenActual });
-      if (mov.o === "Nómina") {
-        // Subcategoria: respetar valor (p.e. mes)
-        const s = document.getElementById("subcategoria");
-        s.innerHTML = "";
-        s.add(new Option(mov.s, mov.s, true, true));
-      } else {
-        llenar("subcategoria", subMaestra, [], mov.s || "", { origenActual });
-      }
-
-      document.getElementById("importe").value = Math.abs(Number(mov.imp)||0);
-      document.getElementById("descripcion").value = mov.d || "";
+  if (id) {
+    let m = movimientos.find(x => x.id.toString() === id.toString());
+    document.getElementById("editId").value = m.id;
+    document.getElementById("fecha").value = m.f;
+    llenar("origen", origenBase, [], m.o);
+    if (NOMINA_CATS.includes(m.c)) {
+      llenar("categoria", catBase, catExtra);
+      document.getElementById("categoria").innerHTML += `<option value="${m.c}" selected>${m.c}</option>`;
+    } else {
+      llenar("categoria", catBase, catExtra, m.c, { origenActual: m.o });
     }
+    if (m.o === "Nómina") {
+      document.getElementById("subcategoria").innerHTML = `<option value="${m.s}" selected>${m.s}</option>`;
+    } else {
+      llenar("subcategoria", subMaestra, [], m.s, { origenActual: m.o });
+    }
+    document.getElementById("importe").value = Math.abs(m.imp);
+    document.getElementById("descripcion").value = m.d || "";
+    btnD.classList.remove("hidden");
   } else {
     document.getElementById("editId").value = "";
-    document.getElementById("fecha").value = new Date().toISOString().split("T")[0];
-
-    document.getElementById("origen").value = origenBase[1] || "Gasto"; // por defecto
-    const origenActual = document.getElementById("origen").value || "";
-    llenar("categoria",   catBase,   catExtra,   "", { origenActual });
-    llenar("subcategoria", subMaestra, [],       "", { origenActual });
-
     document.getElementById("importe").value = "";
     document.getElementById("descripcion").value = "";
+    document.getElementById("fecha").value = new Date().toISOString().split("T")[0];
+    llenar("origen", origenBase, []);
+    const oSel = document.getElementById("origen").value || "";
+    llenar("categoria", catBase, catExtra, "", { origenActual: oSel });
+    llenar("subcategoria", subMaestra, [], "", { origenActual: oSel });
+    btnD.classList.add("hidden");
   }
-}
-
-function volver(){
-  const f = document.getElementById("form");
-  const m = document.getElementById("movimientos");
-  if (!f || !m) return;
-  f.classList.add("hidden");
-  m.classList.remove("hidden");
-  actualizarListas();
-  mostrar();
-}
-
-function eliminarRegistroActual(){
-  const idAEliminar = document.getElementById("editId").value;
-  if (!idAEliminar) return;
-  if (confirm("¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTE REGISTRO?")) {
-    movimientos = movimientos.filter(x => String(x.id) !== String(idAEliminar));
-    localStorage.setItem('movimientos', JSON.stringify(movimientos));
-    volver();
-  }
-}
-
-function resetPagina(){ registrosVisibles = 25; window.scrollTo(0,0); }
-function ejecutarBackupRotativo(){ /* opcional */ }
-function resetTotal(){ if (confirm("¿BORRAR TODO?")) { localStorage.clear(); location.reload(); } }
-
-// Stubs básicos para compatibilidad (si tu HTML los llama, no romperán)
-function abrirGraficos(){ /* pendiente: tu vista de gráficos */ }
-
-/* Añadir nueva categoría o subcategoría desde el "+" del select */
-function manejarNuevo(el, tipo){
-  if (!el || el.value !== "+") return;
-
-  let n = prompt(`Nueva ${tipo}:`);
-  if (!n) { el.value = ""; return; }
-  const pretty = (n || "").toString().trim();
-  if (!pretty) { el.value = ""; return; }
-
-  if (tipo === "categoria") {
-    // Evitar categorías de nómina como alta manual
-    if (NOMINA_CATS.includes(pretty)) {
-      alert("No puedes crear manualmente 'Oskar' o 'Josune'. Selecciona 'Nómina'.");
-      el.value = "";
-      return;
-    }
-    if (!catExtra.includes(pretty) && !catBase.includes(pretty)) {
-      catExtra.push(pretty);
-      localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-    }
-    const origenActual = document.getElementById("origen")?.value || "";
-    llenar("categoria", catBase, catExtra, pretty, { origenActual });
-  } else {
-    if (!subMaestra.includes(pretty)) {
-      subMaestra.push(pretty);
-      localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-    }
-    const origenActual = document.getElementById("origen")?.value || "";
-    llenar("subcategoria", subMaestra, [], pretty, { origenActual });
-  }
-}
-
-/* Borrar un valor añadido manualmente */
-function borrarElemento(tipo){
-  const select = document.getElementById(tipo);
-  if (!select) return;
-
-  const val = select.value;
-  if (!val) return;
-
-  if (tipo === 'categoria') {
-    const idx = catExtra.indexOf(val);
-    if (idx >= 0) {
-      catExtra.splice(idx,1);
-      localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-      const origenActual = document.getElementById("origen")?.value || "";
-      llenar('categoria', catBase, catExtra, "", { origenActual });
-    } else {
-      alert('Solo puedes borrar categorías añadidas manualmente.');
-    }
-  } else if (tipo === 'subcategoria') {
-    const idx = subMaestra.indexOf(val);
-    if (idx >= 0) {
-      subMaestra.splice(idx,1);
-      localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-      const origenActual = document.getElementById("origen")?.value || "";
-      llenar('subcategoria', subMaestra, [], "", { origenActual });
-    }
-  }
-}
-
-/* Reconfigura listas cuando cambia ORIGEN (Nómina vs resto) */
-document.addEventListener('change', (e)=>{
-  if (e.target && e.target.id === 'origen') {
-    const o = e.target.value;
-    if (o === "Nómina") {
-      // Subcategoría = mes de la fecha
-      const fVal = document.getElementById("fecha")?.value || new Date().toISOString().split("T")[0];
-      const mIdx = new Date(fVal + "T00:00:00").getMonth();
-
-      const s = document.getElementById("subcategoria");
-      s.innerHTML = "";
-      s.add(new Option(mesesLabel[mIdx], mesesLabel[mIdx], true, true));
-
-      // Categorías de nómina
-      const c = document.getElementById("categoria");
-      c.innerHTML = "";
-      ["Oskar","Josune"].forEach(v => c.add(new Option(v, v)));
-    } else {
-      llenar('categoria',   catBase,   catExtra,   "", { origenActual: o });
-      llenar('subcategoria', subMaestra, [],       "", { origenActual: o });
-    }
-  }
-}, true);
-
-
-/* =========================================================
-   GUARDAR (corregido)
-========================================================= */
+  f.classList.remove("hidden");
+  mDiv.classList.add("hidden");
+};
 
 const guardar = () => {
   const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
-  const v = Object.fromEntries(ids.map(id => [id, document.getElementById(id)?.value]));
+
+  // ✅ corrección clave aquí ([id]: ...)
+  const v = ids.reduce((acc,id)=>({ ...acc, [id]: document.getElementById(id).value }),{});
+
   const imp = parseFloat(v.importe);
   if (!v.origen || !v.categoria || !v.subcategoria || isNaN(imp)) {
     alert("Faltan datos");
     return;
   }
+
   const m = {
     id : v.editId || `id_${Date.now()}`,
     f  : v.fecha,
@@ -473,15 +326,16 @@ const guardar = () => {
     ts : Date.now()
   };
 
-  // Registrar listas nuevas si procede (extras)
-  if (m.c && !catBase.includes(m.c) && !catExtra.includes(m.c) && !NOMINA_CATS.includes(m.c)) {
-    catExtra.push(m.c);
-    localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+  if (v.editId) {
+    const idx = movimientos.findIndex(x => x.id.toString() === v.editId.toString());
+    if (idx !== -1) movimientos[idx] = m;
+  } else {
+    movimientos.push(m);
+    if (movimientos.length % 15 === 0) ejecutarBackupRotativo();
   }
-  if (m.s && !subMaestra.includes(m.s) && !NOMINA_SUBS.includes(m.s)) {
-    subMaestra.push(m.s);
-    localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-  }
+  localStorage.setItem('movimientos', JSON.stringify(movimientos));
+  volver();
+};
 
   if (v.editId) {
     const idx = movimientos.findIndex(x => x.id.toString() === v.editId.toString());
@@ -493,33 +347,216 @@ const guardar = () => {
   localStorage.setItem('movimientos', JSON.stringify(movimientos));
   volver();
 };
-window.guardar = guardar; // por si se llama desde onclick
 
+const volver = () => {
+  document.getElementById("form").classList.add("hidden");
+  document.getElementById("movimientos").classList.remove("hidden");
+  actualizarListas();
+  mostrar();
+};
 
-/* =========================================================
-   EXPORT / IMPORT CSV
-========================================================= */
+const manejarNuevo = (el, tipo) => {
+  if (el.value === "+") {
+    let n = prompt(`Nueva ${tipo}:`);
+    if (!n) { el.value = ""; return; }
+    n = n.trim();
+    const pretty = mostrarBonito(n);
+    const keyNew = canonicalizeLabel(pretty);
 
-function exportarCSV(){
-  if (!movimientos || !movimientos.length) {
+    if (tipo === "categoria") {
+      const catIdx = buildCanonIndex(catBase, catExtra);
+      // Bloqueo nómima manual
+      if (NOMINA_CATS.some(x => canonicalizeLabel(x) === keyNew)) {
+        alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina' y usa el popup.");
+        el.value = "";
+        return;
+      }
+      if (catIdx.has(keyNew)) {
+        const existente = catIdx.get(keyNew);
+        llenar("categoria", catBase, catExtra, existente, { origenActual: document.getElementById("origen").value || "" });
+      } else {
+        catExtra.push(pretty);
+        localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+        llenar("categoria", catBase, catExtra, pretty, { origenActual: document.getElementById("origen").value || "" });
+      }
+    } else {
+      const subIdx = buildCanonIndex(subMaestra, []);
+      if (subIdx.has(keyNew)) {
+        const existente = subIdx.get(keyNew);
+        llenar("subcategoria", subMaestra, [], existente, { origenActual: document.getElementById("origen").value || "" });
+      } else {
+        subMaestra.push(pretty);
+        localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+        llenar("subcategoria", subMaestra, [], pretty, { origenActual: document.getElementById("origen").value || "" });
+      }
+    }
+  }
+};
+
+const borrarElemento = (tipo) => {
+  const select = document.getElementById(tipo);
+  const val = select.value;
+  if (!val) return;
+
+  if (tipo === 'categoria') {
+    const idx = catExtra.indexOf(val);
+    if (idx >= 0) {
+      catExtra.splice(idx,1);
+      localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+      const origenActual = document.getElementById("origen").value || "";
+      llenar('categoria', catBase, catExtra, "", { origenActual });
+    } else {
+      alert('Solo puedes borrar categorías añadidas por ti.');
+    }
+  } else if (tipo === 'subcategoria') {
+    const idx = subMaestra.indexOf(val);
+    if (idx >= 0) {
+      subMaestra.splice(idx,1);
+      localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+      const origenActual = document.getElementById("origen").value || "";
+      llenar('subcategoria', subMaestra, [], "", { origenActual });
+    }
+  }
+};
+
+const abrirGraficos = () => {
+  const m = document.getElementById("movimientos");
+  m.dataset.modo = (m.dataset.modo === "graficos") ? "lista" : "graficos";
+  mostrar();
+};
+
+const resetPagina = () => { registrosVisibles = 25; window.scrollTo(0,0); };
+
+const actualizarListas = () => {
+  const fC = document.getElementById("filtroCat"),
+        fS = document.getElementById("filtroSub"),
+        fO = document.getElementById("filtroOri");
+
+  fC.innerHTML = '<option value="TODAS">Cat: TODAS</option>';
+  [...new Set([...catBase, ...catExtra, ...NOMINA_CATS])].sort().forEach(c => fC.add(new Option(c, c)));
+
+  fS.innerHTML = '<option value="TODAS">Sub: TODAS</option>';
+  [...new Set([...subMaestra, ...NOMINA_SUBS])].sort().forEach(s => fS.add(new Option(s, s)));
+
+  fO.innerHTML = '<option value="TODOS">Ori: TODOS</option>';
+  origenBase.forEach(o => fO.add(new Option(o, o)));
+};
+
+/* ==========================
+   NORMALIZACIÓN RETROACTIVA
+========================== */
+function normalizarListasExistentes(){
+  // Limpiar catExtra: quitar duplicados y los que ya están en base
+  const vistosCat = new Set(Object.values(catBase).map(v => canonicalizeLabel(v)));
+  const nuevaExtra = [];
+  [...new Set(catExtra)].forEach(v=>{
+    const k = canonicalizeLabel(v);
+    if (vistosCat.has(k)) return;
+    if (![...NOMINA_CATS.map(canonicalizeLabel)].includes(k)){
+      if (!nuevaExtra.some(x => canonicalizeLabel(x)===k)) nuevaExtra.push(v);
+      vistosCat.add(k);
+    }
+  });
+  catExtra = nuevaExtra;
+  localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+
+  // Subcategorías: eliminar duplicados canónicos (bugfix)
+  const vistosSub = new Set();
+  const nuevasSubs = [];
+  subMaestra.forEach(v=>{
+    const k = canonicalizeLabel(v);
+    if (!vistosSub.has(k)) {
+      vistosSub.add(k);
+      nuevasSubs.push(v);
+    }
+  });
+  subMaestra = nuevasSubs;
+  localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+
+  // Normalizar movimientos existentes a canónicos
+  const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
+  const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
+  let cambiado = false;
+  movimientos = movimientos.map(m=>{
+    const kc = canonicalizeLabel(m.c);
+    const ks = canonicalizeLabel(m.s);
+    let c = m.c, s = m.s;
+    if (catIndexCanon.has(kc)) c = catIndexCanon.get(kc);
+    if (subIndexCanon.has(ks)) s = subIndexCanon.get(ks);
+    if (c!==m.c || s!==m.s){
+      cambiado = true;
+      return {...m, c, s, ts: Math.max(Date.now(), (m.ts||0)+1)};
+    }
+    return m;
+  }).sort((a,b)=>new Date(b.f)-new Date(a.f));
+  if (cambiado) localStorage.setItem('movimientos', JSON.stringify(movimientos));
+}
+
+/* ==========================
+   INIT
+========================== */
+const init = () => {
+  const fM = document.getElementById("filtroMes"),
+        fA = document.getElementById("filtroAño"),
+        hoy = new Date();
+
+  fM.innerHTML = '<option value="TODOS">Mes: TODOS</option>';
+  mesesLabel.forEach((m, i) => fM.add(new Option(m, i)));
+  fM.value = hoy.getMonth();
+
+  fA.innerHTML = '<option value="TODOS">Año: TODOS</option>';
+  for (let a = 2020; a <= 2030; a++) fA.add(new Option(a, a));
+  fA.value = hoy.getFullYear();
+
+  normalizarListasExistentes();
+  actualizarListas();
+  mostrar();
+};
+
+const ejecutarBackupRotativo = () => { /* opcional */ };
+const resetTotal = () => confirm("¿BORRAR TODO?") && (localStorage.clear(), location.reload());
+
+window.onscroll = () => {
+  if (document.getElementById("movimientos").dataset.modo === "graficos") return;
+  if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200 && registrosVisibles < filtradosGlobal.length) {
+    document.getElementById("loader").style.display = "block";
+    setTimeout(() => { registrosVisibles += 25; mostrar(); }, 200);
+  }
+};
+
+/* ==========================
+   CSV: EXPORTACIÓN (europeo)
+========================== */
+const exportarCSV = () => {
+  if (!movimientos || movimientos.length === 0) {
     alert("No hay datos para exportar.");
     return;
   }
   const SEP = ";";
   const toESDate = (iso) => {
-    const [y,m,d] = (iso||"").split("-");
-    return (y && m && d) ? `${d}/${m}/${y}` : (iso||"");
+    const [y,m,d] = (iso || "").split("-");
+    return (y && m && d) ? `${d}/${m}/${y}` : (iso || "");
+  };
+  const toEuro = (n) => {
+    const val = (typeof n === "number" ? n : parseFloat(n || 0));
+    const s = Number.isFinite(val) ? val.toString() : "0";
+    return s.includes(".") ? s.replace(".", ",") : s;
   };
   const csvCell = (v) => {
     let t = (v ?? "").toString().replace(/\r?\n/g, "⏎");
     if (/[;"\n]/.test(t)) t = '"' + t.replace(/"/g,'""') + '"';
     return t;
   };
-
   const headers = ["Fecha","Origen","Categoria","Subcategoria","Importe","Descripcion"].join(SEP);
   const rows = movimientos.map(m =>
-    [toESDate(m.f), m.o||"", m.c||"", m.s||"", (Number(m.imp)||0), (m.d??"").trim()]
-      .map(csvCell).join(SEP)
+    [
+      toESDate(m.f),
+      m.o || "",
+      m.c || "",
+      m.s || "",
+      toEuro(m.imp),
+      (m.d ?? "").trim()
+    ].map(csvCell).join(SEP)
   );
   const csv = [headers, ...rows].join("\n");
   const hoy = new Date();
@@ -527,22 +564,24 @@ function exportarCSV(){
   const mm = String(hoy.getMonth()+1).padStart(2,"0");
   const yyyy = hoy.getFullYear();
   const fileName = `mis_gastos_${dd}${mm}${yyyy}.csv`;
-
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = fileName;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
+};
 
-function importarCSV(e){
+/* ==========================
+   CSV: IMPORTACIÓN
+========================== */
+const importarCSV = (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const text = String(reader.result || "").replace(/^\uFEFF/,"");
+      const text = reader.result.replace(/^\uFEFF/,"");
       const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
       if (!lines.length) { alert("El archivo está vacío."); return; }
 
@@ -558,7 +597,7 @@ function importarCSV(e){
       else if (counts.semi >= counts.comma) delim = ";";
       else delim = ",";
 
-      // Parser con comillas
+      // Parser CSV/TSV con comillas
       const parseLine = (line) => {
         const out = []; let cur = "", inQ = false;
         for (let i=0;i<line.length;i++){
@@ -573,7 +612,7 @@ function importarCSV(e){
         return out;
       };
 
-      // Índices columnas
+      // Índices de columnas
       const cols = parseLine(header).map(h=>h.trim().toLowerCase());
       const idx = {
         fecha: cols.findIndex(c => c.startsWith("fecha")),
@@ -600,44 +639,79 @@ function importarCSV(e){
         const n = parseFloat(t);
         return isNaN(n) ? 0 : n;
       };
-      const clean = (s) => {
+      const cleanText = (s) => {
         if (!s) return "";
-        let t = s.replace(/\\"{2,}/g, '"').trim();
+        let t = s.replace(/\\\"{2,}/g, '"').trim();
         if (t.startsWith('"') && t.endsWith('"')) t = t.slice(1,-1);
         return t.trim();
       };
 
+      // Índices canónicos actuales
+      const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
+      const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
       const nuevos = [];
-      for (let i=1; i<lines.length; i++){
+
+      for (let i = 1; i < lines.length; i++) {
         const arr = parseLine(lines[i]);
-        if (arr.every(v => (v||'').trim() === '')) continue;
+        if (arr.every(v => (v || '').trim() === '')) continue;
 
-        const f = toISODate(clean(arr[idx.fecha] ?? ''));
-        let  o = clean(arr[idx.origen] ?? '');
-        let  c = clean(arr[idx.categoria] ?? '');
-        let  s = clean(arr[idx.subcategoria] ?? '');
-        let  d = clean(idx.descripcion >= 0 ? (arr[idx.descripcion] ?? '') : '');
+        const rawFecha = arr[idx.fecha] ?? '';
+        const rawOrigen = arr[idx.origen] ?? '';
+        const rawCat = arr[idx.categoria] ?? '';
+        const rawSub = arr[idx.subcategoria] ?? '';
+        const rawImp = arr[idx.importe] ?? '';
+        const rawDesc = (idx.descripcion >= 0 ? arr[idx.descripcion] : '') ?? '';
 
-        // Normaliza origen y signo
+        const f = toISODate(cleanText(rawFecha));
+        let o = cleanText(rawOrigen);
+        let c = mostrarBonito(cleanText(rawCat));
+        let s = mostrarBonito(cleanText(rawSub));
+        let d = cleanText(rawDesc);
+
+        // Origen y signo
         const oLow = o.toLowerCase();
         if (oLow.startsWith('nom')) o = 'Nómina';
         else if (oLow.startsWith('gas')) o = 'Gasto';
         else if (oLow.startsWith('ing')) o = 'Ingreso';
 
-        let imp = parseEuroNumber(arr[idx.importe] ?? 0);
+        // Unificación canónica
+        const keyC = canonicalizeLabel(c);
+        const keyS = canonicalizeLabel(s);
+        if (catIndexCanon.has(keyC)) c = catIndexCanon.get(keyC);
+        if (subIndexCanon.has(keyS)) s = subIndexCanon.get(keyS);
+
+        let imp = parseEuroNumber(rawImp);
         if (o === 'Gasto' && imp > 0) imp = -Math.abs(imp);
         if (o !== 'Gasto' && imp < 0) imp = Math.abs(imp);
 
+        const mov = { id:`id_${Date.now()}_${i}`, f, o, c, s, imp, d, ts: Date.now() + i };
         if (!f || !o || !c || !s || isNaN(imp)) continue;
-        nuevos.push({ id:`id_${Date.now()}_${i}`, f, o, c, s, imp, d, ts: Date.now()+i });
+
+        nuevos.push(mov);
       }
 
-      movimientos = [...movimientos, ...nuevos]
-        .sort((a,b)=> new Date(b.f) - new Date(a.f));
+      // Insertar categorías/subcategorías nuevas (no duplicadas canónicas)
+      const addIfNewCanon = (list, storeKey, value) => {
+        const k = canonicalizeLabel(value);
+        const exists = list.some(v => canonicalizeLabel(v) === k);
+        if (!exists) {
+          list.push(value);
+          localStorage.setItem(storeKey, JSON.stringify(list));
+        }
+      };
+
+      nuevos.forEach(m=>{
+        if (![...catBase, ...catExtra, ...NOMINA_CATS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.c))){
+          addIfNewCanon(catExtra, 'categoriaExtra', m.c);
+        }
+        if (![...subMaestra, ...NOMINA_SUBS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.s))){
+          addIfNewCanon(subMaestra, 'subMaestra_v2', m.s);
+        }
+      });
+
+      movimientos = [...movimientos, ...nuevos].sort((a,b)=>new Date(b.f)-new Date(a.f));
       localStorage.setItem('movimientos', JSON.stringify(movimientos));
-      actualizarListas();
-      resetPagina();
-      mostrar();
+      actualizarListas(); resetPagina(); mostrar();
 
       alert(`Importación completa: ${nuevos.length} registros añadidos.`);
     } catch (err) {
@@ -649,34 +723,92 @@ function importarCSV(e){
   };
   reader.onerror = () => alert("No se pudo leer el archivo.");
   reader.readAsText(file, 'UTF-8');
-}
+};
 
+/* ==========================
+   POPUP PREMIUM + “Añadir nuevo”
+========================== */
+(function(){
+  const lanzarPopupPremium = (el,tipo) => {
+    const overlay=document.createElement('div'); overlay.className='premium-overlay';
+    overlay.innerHTML=`<div class="premium-content">
+      <div class="premium-title">NUEVO VALOR</div>
+      <input type="text" id="val_premium" class="premium-input" autofocus placeholder="..." />
+      <button class="btn-gold" id="confirm_premium">AÑADIR</button>
+      <button class="btn-silver" id="cancel_premium">CANCELAR</button>
+    </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('confirm_premium').onclick=()=>{
+      let n=document.getElementById('val_premium').value.trim();
+      if(n){
+        const select=el; select.value="+";
+        overlay.remove();
+        setTimeout(()=>manejarNuevo(select,select.id),0);
+      } else overlay.remove();
+    };
+    document.getElementById('cancel_premium').onclick=()=>{ el.value=""; overlay.remove(); };
+  };
+  document.addEventListener('change',(e)=>{
+    if((e.target.id==='categoria'||e.target.id==='subcategoria') && e.target.value === "+"){
+      e.stopImmediatePropagation(); lanzarPopupPremium(e.target,e.target.id);
+    }
+  },true);
+})();
 
-/* =========================================================
-   Exposición global para handlers del HTML + autoinit
-========================================================= */
+/* ==========================
+   POPUP NÓMINA
+========================== */
+(function(){
+  const lanzarPopupNomina = () => {
+    const overlay=document.createElement('div'); overlay.className='nomina-overlay';
+    overlay.innerHTML=`<div class="nomina-content">
+      <div class="nomina-title">¿QUIÉN COBRA?</div>
+      <button class="btn-nomina btn-oskar" id="btn_oskar">OSKAR</button>
+      <button class="btn-nomina btn-josune" id="btn_josune">JOSUNE</button>
+      <button class="btn-nomina btn-cancel" id="btn_cancel_nom">CANCELAR</button>
+    </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('btn_oskar').onclick=()=>{ document.getElementById("categoria").innerHTML=`<option value="Oskar" selected>Oskar</option>`; overlay.remove(); };
+    document.getElementById('btn_josune').onclick=()=>{ document.getElementById("categoria").innerHTML=`<option value="Josune" selected>Josune</option>`; overlay.remove(); };
+    document.getElementById('btn_cancel_nom').onclick=()=>{ document.getElementById("origen").value="Gasto";
+      llenar('categoria',catBase,catExtra,"",{origenActual:"Gasto"}); llenar('subcategoria',subMaestra,[], "",{origenActual:"Gasto"}); overlay.remove(); };
+  };
 
-window.init = init;
-window.mostrar = mostrar;
-window.actualizarListas = actualizarListas;
-window.llenar = llenar;
-window.manejarNuevo = manejarNuevo;
-window.borrarElemento = borrarElemento;
+  document.addEventListener('change',(e)=>{
+    if(e.target.id === 'origen'){
+      const o = e.target.value;
+      if (o === "Nómina") {
+        const fVal = document.getElementById("fecha").value || new Date().toISOString().split("T")[0];
+        const mIdx = new Date(fVal + "T00:00:00").getMonth();
+        document.getElementById("subcategoria").innerHTML = `<option value="${mesesLabel[mIdx]}" selected>${mesesLabel[mIdx]}</option>`;
+        lanzarPopupNomina();
+      } else {
+        llenar('categoria',catBase,catExtra,"",{origenActual:o});
+        llenar('subcategoria',subMaestra,[], "",{origenActual:o});
+      }
+    }
+  },true);
+})();
 
-window.importarCSV = importarCSV;
-window.exportarCSV = exportarCSV;
-
-window.volver = volver;
-window.abrirFormulario = abrirFormulario;
-window.eliminarRegistroActual = eliminarRegistroActual;
-
-window.resetPagina = resetPagina;
-window.resetTotal = resetTotal;
-window.abrirGraficos = abrirGraficos;
-
-document.addEventListener('DOMContentLoaded', ()=>{
-  const m = document.getElementById("movimientos");
-  if (m && m.dataset.permiso === "OK") {
-    try { init(); } catch(e){ console.error(e); }
+/* ==========================
+   ELIMINAR REGISTRO
+========================== */
+window.eliminarRegistroActual = function(){
+  const idAEliminar = document.getElementById("editId").value;
+  if (!idAEliminar) return;
+  if (confirm("¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTE REGISTRO?")) {
+    movimientos = movimientos.filter(m => m.id.toString() !== idAEliminar.toString());
+    localStorage.setItem('movimientos', JSON.stringify(movimientos));
+    volver();
   }
-});
+};
+
+/* ==========================
+   REGISTRO SERVICE WORKER (PWA)
+========================== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    // Mantiene tus rutas /APK_V0.0/
+    navigator.serviceWorker.register('./sw.js').catch(err => console.error("SW ERROR:", err));
+  });
+}
