@@ -256,41 +256,50 @@ function mostrar() {
 
   const modo = movDiv.dataset.modo || "lista";
 
-  if (modo === "graficos") {
+if (modo === "graficos") {
+    // ← Gráficos 1 → botón atrás = IGUAL QUE GRÁFICOS 2
     if (btnLeft){
-      btnLeft.innerHTML = iconBars();
+      btnLeft.innerHTML = iconBack();   // ANTES: iconBars()
       btnLeft.setAttribute("aria-label","Volver a lista");
       btnLeft.onclick = () => setModo("lista");
     }
+    // botón central = abrir gráficos 2
     if (btnCenter){
       btnCenter.innerHTML = iconGraph2();
       btnCenter.setAttribute("aria-label","Gráficos 2");
       btnCenter.onclick = () => setModo("graficos2");
     }
+
   } else if (modo === "graficos2") {
+    // ← Gráficos 2 → botón atrás sin cambios
     if (btnLeft){
       btnLeft.innerHTML = iconBack();
       btnLeft.setAttribute("aria-label","Volver a gráficos");
       btnLeft.onclick = () => setModo("graficos");
     }
+    // botón + debe desaparecer
     if (btnCenter){
-      btnCenter.textContent = "+";
-      btnCenter.setAttribute("aria-label","Nuevo registro");
-      btnCenter.onclick = () => abrirFormulario();
+      btnCenter.innerHTML = "";        // ← vacío
+      btnCenter.onclick = null;        // ← sin acción
+      btnCenter.style.opacity = "0";   // ← invisibilidad total pero mantiene el layout
     }
-  } else { // "lista"
+
+  } else { // → MODO LISTA
+    // botón izquierdo debe ser igual que el botón + (misma estética)
     if (btnLeft){
-      btnLeft.innerHTML = iconBars();
+      btnLeft.classList.add("plus-like");   // ← nuevo estilo
+      btnLeft.innerHTML = iconBars();       // ← mismo tamaño que +
       btnLeft.setAttribute("aria-label","Ver gráficos");
       btnLeft.onclick = () => setModo("graficos");
     }
+    // botón central "+" normal
     if (btnCenter){
-      btnCenter.textContent = "+";
+      btnCenter.style.opacity = "1";         // ← asegurarnos de que reaparece
+      btnCenter.innerHTML = "+";            
       btnCenter.setAttribute("aria-label","Nuevo registro");
       btnCenter.onclick = () => abrirFormulario();
     }
   }
-
   // Render
   const listaDiv = document.getElementById("lista");
   if (modo === "graficos" || modo === "graficos2") {
