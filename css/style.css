@@ -13,7 +13,6 @@
   --text:#f8fafc;
 
   --gold-gradient:linear-gradient(45deg,#bf953f,#fcf6ba,#b38728,#fbf5b7,#aa771c);
-  --pink-metal:linear-gradient(45deg,#a00050,#ff1493,#ff85c1,#ff1493,#a00050);
   --gold-metal:linear-gradient(45deg,#8a6d3b,#d4af37,#fcf6ba,#d4af37,#8a6d3b);
 }
 
@@ -69,7 +68,7 @@ body {
 }
 
 /* ==========================
-   Filtros grandes (UI)
+   Filtros
 ========================== */
 .filtros-wrapper{
   display:grid;grid-template-columns:repeat(6,1fr);gap:8px;
@@ -77,14 +76,10 @@ body {
   border:1px solid rgba(212,175,55,.3);margin-bottom:20px;
 }
 .filtro-item span{
-  font-size:13px!important;font-weight:900!important;
-  letter-spacing:1px!important;margin-bottom:5px!important;
-  display:inline-block!important;
+  font-size:13px;font-weight:900;letter-spacing:1px;margin-bottom:5px;display:inline-block;
 }
 .filtro-item select{
-  font-size:16px!important;height:50px!important;
-  padding:5px 10px!important;border-radius:14px!important;
-  font-weight:bold!important;
+  font-size:16px;height:50px;padding:5px 10px;border-radius:14px;font-weight:bold;
 }
 .filtros-wrapper .filtro-item:nth-child(1),
 .filtros-wrapper .filtro-item:nth-child(2),
@@ -100,7 +95,7 @@ input,select,textarea{
   color:#fff;box-sizing:border-box;
 }
 #form input,#form select,#form textarea{
-  font-size:22px!important;height:auto!important;padding:14px!important;
+  font-size:22px;height:auto;padding:14px;
 }
 
 /* ==========================
@@ -162,7 +157,7 @@ input,select,textarea{
 @keyframes spin{ to{ transform:rotate(360deg) } }
 
 /* ==========================
-   Estilo botón CANCELAR (plata)
+   Botón CANCELAR (plata)
 ========================== */
 #form button[onclick="volver()"]{
   background:linear-gradient(45deg,#757575,#c0c0c0,#ffffff,#c0c0c0,#757575)!important;
@@ -172,54 +167,50 @@ input,select,textarea{
 }
 
 /* ==========================
-   POPUP PREMIUM + “Añadir nuevo”
+   GRÁFICOS 2 (cuadrados 13 meses)
 ========================== */
-.premium-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;
-  justify-content:center;z-index:99999;backdrop-filter:blur(12px);
+.g2-wrapper{
+  background:var(--card-bg);
+  border:1px solid rgba(212,175,55,.3);
+  border-radius:16px;
+  padding:18px 12px 22px 12px;
+  position:relative;
+  box-shadow:0 4px 15px rgba(0,0,0,.3);
 }
-.premium-content{
-  background:#0b0f1a;width:85%;max-width:320px;border-radius:40px;border:2px solid #d4af37;
-  padding:35px 25px;text-align:center;box-shadow:0 0 40px rgba(212,175,55,.3);
+.g2-title{
+  color:var(--primary);
+  text-align:center;
+  font-size:16px;
+  font-weight:900;
+  margin-bottom:10px;
 }
-.premium-title{ color:#d4af37;font-size:22px;font-weight:900;margin-bottom:25px; }
-.premium-input{
-  background:#131926;border:1px solid #1e293b;color:#fff;border-radius:15px;
-  padding:18px;font-size:18px;width:100%;margin-bottom:25px;text-align:center;outline:none;
+.g2-axis{
+  position:relative;
+  height:200px; /* alto del lienzo */
+  border-top:1px dashed rgba(212,175,55,.5);
+  top:100px; /* centra la línea horizontal */
 }
-.btn-gold{
-  background:linear-gradient(180deg,#bf953f,#fcf6ba,#b38728);color:#000;border:none;
-  width:100%;height:65px;border-radius:20px;font-size:20px;font-weight:900;text-transform:uppercase;margin-bottom:12px;
+.g2-grid{
+  position:absolute;left:0;right:0;top:0;bottom:0;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:0 6px;
 }
-.btn-silver{
-  background:linear-gradient(180deg,#757575,#c0c0c0,#ffffff);color:#000;border:none;
-  width:100%;height:65px;border-radius:20px;font-size:20px;font-weight:900;text-transform:uppercase;
+.g2-col{
+  width:22px;min-width:22px;display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.g2-square{
+  width:22px;height:22px;border-radius:4px;border:1px solid rgba(0,0,0,.35);
+  box-shadow:0 2px 6px rgba(0,0,0,.25);
+}
+.g2-square.up{ transform:translateY(-60px); }    /* encima de la línea */
+.g2-square.down{ transform:translateY(60px); }   /* debajo de la línea */
+.g2-label{
+  font-size:10px;color:#cbd5e1;font-weight:700;text-align:center;
+  transform:translateY(6px);
 }
 
-/* ==========================
-   POPUP NÓMINA
-========================== */
-.nomina-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;
-  justify-content:center;z-index:100001;backdrop-filter:blur(15px);
-}
-.nomina-content{
-  background:#0b0f1a;width:85%;max-width:340px;border-radius:45px;border:2px solid #d4af37;
-  padding:40px 25px;text-align:center;box-shadow:0 0 50px rgba(212,175,55,.3);
-}
-.nomina-title{ color:#d4af37;font-size:24px;font-weight:900;margin-bottom:35px; }
-.btn-nomina{
-  width:100%;height:75px;border-radius:25px;font-size:24px;font-weight:900;border:none;margin-bottom:15px;
-  cursor:pointer;text-transform:uppercase;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(0,0,0,.4);
-}
-.btn-oskar{ background:linear-gradient(180deg,#bf953f,#fcf6ba,#b38728);color:#000; }
-.btn-josune{ background:linear-gradient(180deg,#a00050,#ff1493,#ff85c1);color:#fff; }
-.btn-cancel{ background:linear-gradient(180deg,#757575,#c0c0c0,#ffffff);color:#000;margin-bottom:0; }
-
-/* ==========================
-   Ajustes varios
-========================== */
-#btnEliminarRegistro button{
-  background:var(--danger);color:#fff;height:60px;width:100%;font-size:18px;margin-top:10px;border:none;
-  font-weight:700;border-radius:16px;
-}
+/* Paleta (mismos umbrales que tu pantalla de gráficos) */
+.g2-blue   { background:var(--electric-blue); }
+.g2-green  { background:var(--success); }
+.g2-amber  { background:var(--warning); }
+.g2-red    { background:var(--danger);  }
