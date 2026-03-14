@@ -73,40 +73,67 @@ input,select,textarea{width:100%;padding:12px;margin:8px 0;font-size:13px;border
 .btn-josune{background:linear-gradient(180deg,#a00050,#ff1493,#ff85c1);color:#fff}
 .btn-cancel{background:linear-gradient(180deg,#757575,#c0c0c0,#ffffff);color:#000;margin-bottom:0}
 
-/* ===== V0.1 Mejoras responsive para Pixel 9a ===== */
-
-/* Contenedor de barra flexible */
+/* ===== V0.1: Barras responsive para gráficos (Pixel 9a) ===== */
 .card .bar-flex {
   display: flex;
-  height: clamp(12px, 2.8vw, 20px); /* auto‑ajustado para pantallas densas */
+  height: clamp(12px, 2.8vw, 20px);
   border-radius: 8px;
   overflow: hidden;
   background: #000;
   border: 1px solid rgba(212,175,55,.25);
 }
+.card .bar-segment { height: 100%; flex-grow: 1; transition: width 0.25s ease-out; }
 
-/* Cada segmento interno de la barra */
-.card .bar-segment {
-  height: 100%;
-  flex-grow: 1;
-  transition: width 0.25s ease-out;
-}
-
-/* Ajuste de tipografías específicas para Pixel 9a */
 @media (max-width: 420px) {
   .card b,
-  .card .meta {
-    font-size: 13px;
-  }
-
-  .card .monto {
-    font-size: 15px;
-  }
+  .card .meta { font-size: 13px; }
+  .card .monto { font-size: 15px; }
+}
+@media (min-width: 360px) and (max-width: 420px) and (min-resolution: 350dpi) {
+  .card .bar-flex { height: clamp(12px, 3.2vw, 18px); }
 }
 
-/* Ajuste extra para pantallas 1080px high-dpi */
-@media (min-width: 360px) and (max-width: 420px) and (min-resolution: 350dpi) {
-  .card .bar-flex {
-    height: clamp(12px, 3.2vw, 18px);
-  }
+/* ===== V0.1: Botón CASA ===== */
+.btn-house {
+  width: 55px;
+  height: 55px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  box-shadow: 0 4px 15px rgba(0,0,0,.3);
+}
+.btn-house svg { width: 28px; height: 28px; stroke: black; fill: none; stroke-width: 2.5; }
+.btn-house.active svg { stroke: #ef4444; } /* rojo cuando oculta casa */
+.btn-icon svg { width: 28px; height: 28px; }
+
+/* ===== V0.1: Gráficos 2 (evolución mensual) ===== */
+.g2-wrap { padding: 6px 6px 20px; }
+.g2-chart {
+  position: relative;
+  height: 180px;
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 26px;
+}
+.g2-baseline {
+  position: absolute; left: 0; right: 0; top: 50%;
+  height: 1px; background: rgba(212,175,55,.35);
+}
+.g2-col { position: relative; height: 100%; }
+.g2-square {
+  position: absolute; left: 50%;
+  width: 18px; height: 18px; margin-left: -9px;
+  border-radius: 4px; background: #444;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+.g2-label {
+  position: absolute; bottom: -18px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px; color: var(--primary);
 }
