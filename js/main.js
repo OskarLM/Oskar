@@ -524,8 +524,8 @@ const abrirFormulario = (id = null) => {
 
 const guardar = () => {
   const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
-  // propiedad computada correcta
-  const v = ids.reduce((acc,id)=>({ ...acc, document.getElementById(id)?.value }),{});
+  // ✅ FIX: clave computada [id] (evita "Unexpected token '.'")
+  const v = ids.reduce((acc,id)=>({ ...acc, [id]: document.getElementById(id)?.value }),{});
   const imp = parseFloat(v.importe);
   if (!v.origen || !v.categoria || !v.subcategoria || isNaN(imp)) return alert("Faltan datos");
 
