@@ -109,3 +109,34 @@ input,select,textarea{width:100%;padding:12px;margin:8px 0;font-size:13px;border
     height: clamp(12px, 3.2vw, 18px);
   }
 }
+/* ===== V1.0: Botón CASA (igual tamaño/estilo que tus botones redondos) ===== */
+.btn-house{
+  width:65px; height:65px; border-radius:50%; border:none; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--gold-gradient);
+  box-shadow:0 4px 15px rgba(0,0,0,.3);
+}
+.btn-house svg{ width:28px; height:28px; stroke:black; fill:none; stroke-width:2.5; }
+.btn-house.active svg{ stroke:#ef4444; } /* rojo cuando oculta casa */
+
+/* Para iconos embebidos en botones (barras, volver, gráficos2) */
+.btn-icon svg{ width:28px; height:28px; }
+
+/* ===== V1.0: Gráficos 2 (evolución mensual) ===== */
+.g2-wrap{ padding:6px 6px 20px; }
+.g2-chart{
+  position:relative; height:180px;
+  display:grid; grid-template-columns:repeat(13, 1fr);
+  gap:10px; align-items:center; margin-bottom:26px;
+}
+.g2-baseline{ position:absolute; left:0; right:0; top:50%; height:1px; background:rgba(212,175,55,.35); }
+.g2-col{ position:relative; height:100%; }
+.g2-square{
+  position:absolute; left:50%; width:18px; height:18px; margin-left:-9px;
+  border-radius:4px; background:#444; box-shadow:0 1px 4px rgba(0,0,0,.35);
+  transform:translateY(0);
+}
+.g2-label{
+  position:absolute; bottom:-18px; left:50%; transform:translateX(-50%);
+  font-size:10px; color:var(--primary);
+}
