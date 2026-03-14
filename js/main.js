@@ -559,7 +559,8 @@ const abrirFormulario = (id = null) => {
 const guardar = () => {
   const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
   // FIX: clave computada [id]
-  const v = ids.reduce((acc,id)=>({ ...acc, document.getElementById(id)?.value }),{});
+  // ✅ CORRECTO y compatible con WebViews antiguos
+   const v = ids.reduce((acc,id)=>({ ...acc, [id]: (document.getElementById(id) ? document.getElementById(id).value : undefined) }),{});
   const imp = parseFloat(v.importe);
   if (!v.origen || !v.categoria || !v.subcategoria || isNaN(imp)) return alert("Faltan datos");
 
