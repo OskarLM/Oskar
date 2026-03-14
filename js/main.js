@@ -13,7 +13,6 @@ const subBase = [
 const catBase = ["Casa","Caravana","Coche","Compras","Efectivo","Escolar","Garaje","Restaurante","Vacaciones"];
 const mesesLabel = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const origenBase = ["Ingreso","Gasto","Nómina"];
-// Nómina
 const NOMINA_CATS = ["Oskar","Josune"];
 const NOMINA_SUBS = [...mesesLabel];
 
@@ -30,8 +29,6 @@ let pinActual = "";
    PIN V0.1 (hasheado + intentos + cooldown)
 ========================== */
 // Requiere desde utils.js: PIN_STORAGE_KEY, PIN_COOLDOWN_KEY, sha256, getAttempts, setAttempts, isInCooldown, setCooldown
-
-// Garantiza hash de PIN por defecto ("7143") en primer arranque
 async function ensureDefaultPinHash() {
   const pinHash = localStorage.getItem(PIN_STORAGE_KEY);
   if (!pinHash) {
@@ -48,7 +45,6 @@ const normalizeKey = (s) => (s ?? "")
   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
   .replace(/[^\p{L}\p{N}]+/gu,' ')
   .replace(/\s+/g,' ').trim();
-
 const singularizeWordEs = (w) => {
   if (w.endsWith('iones')) return w.slice(0,-5)+'ion';
   if (w.endsWith('ces')) return w.slice(0,-3)+'z';
@@ -113,7 +109,7 @@ async function verifyAndUnlock(pinPlain) {
     const prev = getAttempts() + 1;
     setAttempts(prev);
     if (prev >= 5) {
-      setCooldown(60); // 60s de bloqueo
+      setCooldown(60);
       setAttempts(0);
       alert("Demasiados intentos fallidos. Bloqueo temporal de 60 segundos.");
     } else {
@@ -146,7 +142,6 @@ const biometricAuth = async () => {
       alert("Biometría no disponible (requiere HTTPS y dispositivo compatible).");
       return;
     }
-    // WebAuthn real no implementado: no desbloqueamos.
     alert("Biometría no implementada aún.");
   } catch (e) {
     console.error(e);
@@ -154,14 +149,72 @@ const biometricAuth = async () => {
   }
 };
 
-// Asegura hash por defecto al cargar
 document.addEventListener('DOMContentLoaded', () => {
   ensureDefaultPinHash().catch(console.error);
   updateDots();
 });
 
 /* ==========================
-   VISTA LISTA / GRÁFICOS
+   V1.0 – ICONOS Y CONTROL MODO
+========================== */
+function iconBars(){
+  return `
+  <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke="black" stroke-width="3">
+    <line x1="18" y1="20" x2="18" y2="10"></line>
+    <line x1="12" y1="20" x2="12" y2="4"></line>
+    <line x1="6" y1="20" x2="6" y2="14"></line>
+  </svg>`;
+}
+function iconBack(){
+  return `
+  <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke="black" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 19l-7-7 7-7"></path>
+  </svg>`;
+}
+function iconGraph2(){
+  return `
+  <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke-width="2.6">
+    <rect x="6" y="7" width="4" height="10" fill="#ef4444" stroke="#ef4444" rx="1"></rect>
+    <rect x="14" y="5" width="4" height="12" fill="#22c55e" stroke="#22c55e" rx="1"></rect>
+  </svg>`;
+}
+function iconCasa(){
+  return `
+  <svg viewBox="0 0 24 24">
+    <path d="M3 10.5 L12 3 L21 10.5" />
+    <path d="M5 10.5 V20 H10 V15 H14 V20 H19 V10.5" />
+  </svg>`;
+}
+
+function setModo(modo){
+  const m = document.getElementById("movimientos");
+  m.dataset.modo = modo;   // "lista" | "graficos" | "graficos2"
+  resetPagina();
+  mostrar();
+}
+
+/* ==========================
+   V1.0 – BOTÓN "CASA"
+========================== */
+let hideCasa = false; // false => muestra todo; true => oculta “compra casa/garaje” y “venta casa”
+function toggleCasa(){
+  hideCasa = !hideCasa;
+  const m = document.getElementById("movimientos");
+  if (m && (m.dataset.modo === "graficos" || m.dataset.modo === "graficos2")) {
+    mostrar();
+  }
+}
+function isCasaCategory(cat){
+  const k = canonicalizeLabel(cat || "");
+  return (
+    k.includes("compra casa") ||
+    k.includes("compra garaje") ||
+    k.includes("venta casa")
+  );
+}
+
+/* ==========================
+   VISTA LISTA / GRÁFICOS / GRÁFICOS2
 ========================== */
 function mostrar() {
   const movDiv = document.getElementById("movimientos");
@@ -192,9 +245,70 @@ function mostrar() {
   else if (t <= (1400 * factor)) bD.style.color = "var(--success)";
   else bD.style.color = "var(--electric-blue)";
 
-  if (movDiv.dataset.modo === "graficos") {
-    renderizarBarrasGraficos(factor);
+  // === V1.0: Gestionar botones de la footer bar según modo ===
+  const btnLeft  = document.querySelector(".footer-row .plus:nth-child(1)");
+  const btnCenter= document.querySelector(".footer-row .plus:nth-child(2)");
+  if (btnLeft)  btnLeft.onclick = null;
+  if (btnCenter)btnCenter.onclick = null;
+
+  const modo = movDiv.dataset.modo || "lista";
+
+  if (modo === "graficos") {
+    if (btnLeft){
+      btnLeft.innerHTML = iconBars();
+      btnLeft.setAttribute("aria-label","Volver a lista");
+      btnLeft.onclick = () => setModo("lista");
+    }
+    if (btnCenter){
+      btnCenter.innerHTML = iconGraph2();   // ← aquí sustituimos “+” por “Gráficos 2”
+      btnCenter.setAttribute("aria-label","Gráficos 2");
+      btnCenter.onclick = () => setModo("graficos2");
+    }
+  } else if (modo === "graficos2") {
+    if (btnLeft){
+      btnLeft.innerHTML = iconBack();
+      btnLeft.setAttribute("aria-label","Volver a gráficos");
+      btnLeft.onclick = () => setModo("graficos");
+    }
+    if (btnCenter){
+      btnCenter.textContent = "+";
+      btnCenter.setAttribute("aria-label","Nuevo registro");
+      btnCenter.onclick = () => abrirFormulario();
+    }
+  } else { // "lista"
+    if (btnLeft){
+      btnLeft.innerHTML = iconBars();
+      btnLeft.setAttribute("aria-label","Ver gráficos");
+      btnLeft.onclick = () => setModo("graficos");
+    }
+    if (btnCenter){
+      btnCenter.textContent = "+";
+      btnCenter.setAttribute("aria-label","Nuevo registro");
+      btnCenter.onclick = () => abrirFormulario();
+    }
+  }
+
+  // === Render de la vista ===
+  if (modo === "graficos" || modo === "graficos2") {
+    const listaDiv = document.getElementById("lista");
+
+    // Toolbar "Casa" arriba del gráfico
+    const toolbarHTML = `
+      <div style="display:flex; gap:12px; align-items:center; justify-content:center; margin:6px 0 14px 0;">
+        <button class="btn-house ${hideCasa ? 'active' : ''}" onclick="toggleCasa()" aria-label="Mostrar/Ocultar casa" title="Casa">
+          ${iconCasa()}
+        </button>
+      </div>
+    `;
+    listaDiv.innerHTML = toolbarHTML;
+
+    if (modo === "graficos") {
+      renderizarBarrasGraficos(factor);
+    } else {
+      renderizarGraficos2();
+    }
   } else {
+    // LISTA original
     document.getElementById("lista").innerHTML = filtradosGlobal
       .slice(0, registrosVisibles)
       .map(m => `
@@ -210,7 +324,12 @@ function mostrar() {
 
 const renderizarBarrasGraficos = (f) => {
   const lista = document.getElementById("lista");
-  const totales = filtradosGlobal
+
+  // V1.0: aplicar filtro "Casa"
+  let fuente = filtradosGlobal.slice();
+  if (hideCasa) fuente = fuente.filter(m => !isCasaCategory(m.c));
+
+  const totales = fuente
     .filter(m => m.imp < 0)
     .reduce((acc,m) => { acc[m.c] = (acc[m.c] || 0) + Math.abs(m.imp); return acc; }, {});
   const max = Math.max(...Object.values(totales), 1);
@@ -245,8 +364,82 @@ const renderizarBarrasGraficos = (f) => {
   }).join("");
 };
 
+function renderizarGraficos2(){
+  const lista = document.getElementById("lista");
+
+  // 1) Filtros: usar Ori/Cat/Sub; ignorar Mes/Año para mostrar SIEMPRE 13 meses
+  const fs = ["filtroMes","filtroAño","filtroCat","filtroSub","filtroOri"].map(id => document.getElementById(id).value);
+
+  // 2) Últimos 13 meses (incluye actual)
+  const hoy = new Date();
+  const meses = [];
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; // YYYY-MM
+    meses.push({ d, key });
+  }
+
+  // 3) Base filtrada por Ori/Cat/Sub + filtro Casa
+  const filtraOtros = (m) => {
+    const cC = fs[2] === "TODAS" || m.c === fs[2];
+    const cS = fs[3] === "TODAS" || m.s === fs[3];
+    const cO = fs[4] === "TODOS" || m.o === fs[4];
+    return cC && cS && cO;
+  };
+  const base = (hideCasa ? movimientos.filter(mm => !isCasaCategory(mm.c)) : movimientos)
+    .filter(filtraOtros);
+
+  // 4) Suma mensual
+  const sumaMes = new Map();
+  for (const mov of base) {
+    const k = (mov.f || "").slice(0,7);
+    if (!meses.some(x => x.key === k)) continue;
+    sumaMes.set(k, (sumaMes.get(k) || 0) + (Number(mov.imp) || 0));
+  }
+
+  // 5) Escala y colores (mismos umbrales que tu gráfico de barras)
+  const valores = meses.map(m => sumaMes.get(m.key) || 0);
+  const maxAbs = Math.max(...valores.map(v => Math.abs(v)), 1);
+  const alto = 180, mitad = alto/2, maxDespl = Math.max(mitad - 16, 40);
+  const baseTop = mitad - 9; // centro del cuadrado
+
+  const colorPositivo = (v) => {
+    const abs = Math.abs(v);
+    if (abs <= 50)  return "var(--electric-blue)";
+    if (abs <= 200) return "var(--success)";
+    if (abs <= 500) return "var(--warning)";
+    return "var(--danger)";
+  };
+
+  let html = `
+    <h2 style="color:var(--primary);font-size:18px;text-align:center">EVOLUCIÓN (13 MESES)</h2>
+    <div class="g2-wrap">
+      <div class="g2-chart">
+        <div class="g2-baseline"></div>
+  `;
+  const mesesCorta = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  for (const m of meses){
+    const v = sumaMes.get(m.key) || 0;
+    const sign = v >= 0 ? 1 : -1;
+    const off  = (Math.abs(v)/maxAbs) * maxDespl;
+    const topPx= (baseTop) - (off * sign);
+    const color= (v >= 0) ? colorPositivo(v) : "var(--danger)";
+    const mesIdx = new Date(m.key + "-01T00:00:00").getMonth();
+    const label = mesesCorta[mesIdx];
+
+    html += `
+      <div class="g2-col">
+        <div class="g2-square" style="top:${topPx}px; background:${color};"></div>
+        <div class="g2-label">${label}</div>
+      </div>
+    `;
+  }
+  html += `</div></div>`;
+  lista.innerHTML += html;
+}
+
 /* ==========================
-   FORMULARIO / CRUD
+   FORMULARIO / CRUD (tu original)
 ========================== */
 const llenar = (id, base, extra, pre = "", opts = {}) => {
   const s = document.getElementById(id);
@@ -311,8 +504,7 @@ const abrirFormulario = (id = null) => {
 
 const guardar = () => {
   const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
-  // ✅ FIX: propiedad computada en el reduce
-  const v = ids.reduce((acc,id)=>({ ...acc, [id]: document.getElementById(id).value }),{});
+  const v = ids.reduce((acc,id)=>({ ...acc, document.getElementById(id).value }),{});
   const imp = parseFloat(v.importe);
   if (!v.origen || !v.categoria || !v.subcategoria || isNaN(imp)) return alert("Faltan datos");
 
@@ -347,39 +539,37 @@ const volver = () => {
 
 const manejarNuevo = (el, tipo) => {
   if (el.value === "+") {
-    // El popup premium se encargará de pedir el texto.
-    // Esta función solo procesa el valor recibido.
-    const n = el.dataset.nuevoValor;    // ← asignado por popupPremium
-    el.dataset.nuevoValor = "";         // ← limpia
-
+    let n = prompt(`Nueva ${tipo}:`);
     if (!n) { el.value = ""; return; }
-
+    n = n.trim();
     const pretty = mostrarBonito(n);
     const keyNew = canonicalizeLabel(pretty);
 
     if (tipo === "categoria") {
       const catIdx = buildCanonIndex(catBase, catExtra);
       if (NOMINA_CATS.some(x => canonicalizeLabel(x) === keyNew)) {
-        alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina'.");
+        alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina' y usa el popup.");
         el.value = "";
         return;
       }
-      if (!catIdx.has(keyNew)) {
+      if (catIdx.has(keyNew)) {
+        const existente = catIdx.get(keyNew);
+        llenar("categoria", catBase, catExtra, existente, { origenActual: document.getElementById("origen").value || "" });
+      } else {
         catExtra.push(pretty);
         localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+        llenar("categoria", catBase, catExtra, pretty, { origenActual: document.getElementById("origen").value || "" });
       }
-      const origenActual = document.getElementById("origen").value || "";
-      llenar("categoria", catBase, catExtra, pretty, { origenActual });
-    }
-
-    if (tipo === "subcategoria") {
+    } else {
       const subIdx = buildCanonIndex(subMaestra, []);
-      if (!subIdx.has(keyNew)) {
+      if (subIdx.has(keyNew)) {
+        const existente = subIdx.get(keyNew);
+        llenar("subcategoria", subMaestra, [], existente, { origenActual: document.getElementById("origen").value || "" });
+      } else {
         subMaestra.push(pretty);
         localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+        llenar("subcategoria", subMaestra, [], pretty, { origenActual: document.getElementById("origen").value || "" });
       }
-      const origenActual = document.getElementById("origen").value || "";
-      llenar("subcategoria", subMaestra, [], pretty, { origenActual });
     }
   }
 };
@@ -437,7 +627,6 @@ const actualizarListas = () => {
    NORMALIZACIÓN RETROACTIVA
 ========================== */
 function normalizarListasExistentes(){
-  // Limpiar catExtra: quitar duplicados y los que ya están en base
   const vistosCat = new Set(Object.values(catBase).map(v => canonicalizeLabel(v)));
   const nuevaExtra = [];
   [...new Set(catExtra)].forEach(v=>{
@@ -451,7 +640,6 @@ function normalizarListasExistentes(){
   catExtra = nuevaExtra;
   localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
 
-  // Subcategorías: eliminar duplicados canónicos (bugfix)
   const vistosSub = new Set();
   const nuevasSubs = [];
   subMaestra.forEach(v=>{
@@ -464,7 +652,6 @@ function normalizarListasExistentes(){
   subMaestra = nuevasSubs;
   localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
 
-  // Normalizar movimientos existentes a canónicos
   const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
   const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
   let cambiado = false;
@@ -516,7 +703,7 @@ window.onscroll = () => {
 };
 
 /* ==========================
-   CSV: EXPORTACIÓN (europeo)
+   CSV: EXPORTACIÓN
 ========================== */
 const exportarCSV = () => {
   if (!movimientos || movimientos.length === 0) {
@@ -576,7 +763,6 @@ const importarCSV = (e) => {
       const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
       if (!lines.length) { alert("El archivo está vacío."); return; }
 
-      // Detectar delimitador
       const header = lines[0];
       const counts = {
         tab:(header.match(/\t/g)||[]).length,
@@ -588,7 +774,6 @@ const importarCSV = (e) => {
       else if (counts.semi >= counts.comma) delim = ";";
       else delim = ",";
 
-      // Parser CSV/TSV con comillas
       const parseLine = (line) => {
         const out = []; let cur = "", inQ = false;
         for (let i=0;i<line.length;i++){
@@ -603,7 +788,6 @@ const importarCSV = (e) => {
         return out;
       };
 
-      // Índices de columnas
       const cols = parseLine(header).map(h=>h.trim().toLowerCase());
       const idx = {
         fecha: cols.findIndex(c => c.startsWith("fecha")),
@@ -617,7 +801,6 @@ const importarCSV = (e) => {
       const missing = required.filter(k => idx[k] < 0);
       if (missing.length) { alert("Faltan columnas: " + missing.join(", ")); return; }
 
-      // Utils parse
       const toISODate = (ddmmyyyy) => {
         const m = ddmmyyyy.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (!m) return ddmmyyyy;
@@ -637,7 +820,6 @@ const importarCSV = (e) => {
         return t.trim();
       };
 
-      // Índices canónicos actuales
       const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
       const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
       const nuevos = [];
@@ -659,13 +841,11 @@ const importarCSV = (e) => {
         let s = mostrarBonito(cleanText(rawSub));
         let d = cleanText(rawDesc);
 
-        // Origen y signo
         const oLow = o.toLowerCase();
         if (oLow.startsWith('nom')) o = 'Nómina';
         else if (oLow.startsWith('gas')) o = 'Gasto';
         else if (oLow.startsWith('ing')) o = 'Ingreso';
 
-        // Unificación canónica
         const keyC = canonicalizeLabel(c);
         const keyS = canonicalizeLabel(s);
         if (catIndexCanon.has(keyC)) c = catIndexCanon.get(keyC);
@@ -681,7 +861,6 @@ const importarCSV = (e) => {
         nuevos.push(mov);
       }
 
-      // Insertar categorías/subcategorías nuevas (no duplicadas canónicas)
       const addIfNewCanon = (list, storeKey, value) => {
         const k = canonicalizeLabel(value);
         const exists = list.some(v => canonicalizeLabel(v) === k);
@@ -734,8 +913,7 @@ const importarCSV = (e) => {
       if(n){
         const select=el; select.value="+";
         overlay.remove();
-        select.dataset.nuevoValor = n;
-        setTimeout(()=>manejarNuevo(select, select.id), 0);
+        setTimeout(()=>manejarNuevo(select,select.id),0);
       } else overlay.remove();
     };
     document.getElementById('cancel_premium').onclick=()=>{ el.value=""; overlay.remove(); };
@@ -800,14 +978,12 @@ window.eliminarRegistroActual = function(){
 ========================== */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Mantiene tus rutas /APK_V0.0/
     navigator.serviceWorker.register('./sw.js').catch(err => console.error("SW ERROR:", err));
   });
 }
 
 /* ==========================
    EXPONER FUNCIONES AL GLOBAL
-   (para que los handlers inline del HTML siempre funcionen)
 ========================== */
 // PIN
 window.pressPin = pressPin;
@@ -826,6 +1002,9 @@ window.borrarElemento = borrarElemento;
 window.abrirGraficos = abrirGraficos;
 window.ejecutarBackupRotativo = ejecutarBackupRotativo;
 window.resetTotal = resetTotal;
-// eliminarRegistroActual ya se declaró como window.*
 window.init = init;
 window.actualizarListas = actualizarListas;
+
+// V1.0
+window.setModo = setModo;
+window.toggleCasa = toggleCasa;
