@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+  />
+  <title>MIS GASTOS V0.0 BETA</title>
+
+  <!-- PWA -->
+  <meta name="theme-color" content="#d4af37" />
+  <link rel="manifest" href="./manifest.json" />
+
+  <!-- iOS meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b0f1a'/><circle cx='50' cy='50' r='40' fill='none' stroke='%23d4af37' stroke-width='4'/><text x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='serif' font-weight='bold' font-size='35' fill='%23d4af37'>O%26J</text></svg>'" />
+
+  <!-- CSS principal extraído -->
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+
+<body>
+  <!-- Overlay de acceso (PIN) -->
+  <div id="authOverlay" class="popup-overlay" role="dialog" aria-modal="true" aria-label="Acceso PIN">
+    <div class="popup-content">
+      <h2 style="color:var(--primary);margin-bottom:10px">ACCESO GOLD</h2>
+      <div class="pin-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="pin-grid">
+        <button class="btn-pin" onclick="pressPin(1)" aria-label="1">1</button>
+        <button class="btn-pin" onclick="pressPin(2)" aria-label="2">2</button>
+        <button class="btn-pin" onclick="pressPin(3)" aria-label="3">3</button>
+        <button class="btn-pin" onclick="pressPin(4)" aria-label="4">4</button>
+        <button class="btn-pin" onclick="pressPin(5)" aria-label="5">5</button>
+        <button class="btn-pin" onclick="pressPin(6)" aria-label="6">6</button>
+        <button class="btn-pin" onclick="pressPin(7)" aria-label="7">7</button>
+        <button class="btn-pin" onclick="pressPin(8)" aria-label="8">8</button>
+        <button class="btn-pin" onclick="pressPin(9)" aria-label="9">9</button>
+        <button class="btn-pin" onclick="biometricAuth()" style="color:var(--electric-blue)" aria-label="Biometría">🫬</button>
+        <button class="btn-pin" onclick="pressPin(0)" aria-label="0">0</button>
+        <button class="btn-pin" onclick="clearPin()" style="color:var(--danger)" aria-label="Borrar">✖</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="background-icon">O&J</div>
+
+  <!-- Vista principal -->
+  <div id="movimientos" class="hidden">
+    <div class="topbar">MIS GASTOS • V0.0 BETA</div>
+
+    <div class="container">
+      <div class="filtros-wrapper">
+        <div class="filtro-item">
+          <span style="font-size:9px;color:var(--primary)">AÑO</span>
+          <select id="filtroAño" onchange="resetPagina();mostrar()"></select>
+        </div>
+        <div class="filtro-item">
+          <span style="font-size:9px;color:var(--primary)">MES</span>
+          <select id="filtroMes" onchange="resetPagina();mostrar()"></select>
+        </div>
+        <div class="filtro-item">
+          <span style="font-size:9px;color:var(--primary)">ORI</span>
+          <select id="filtroOri" onchange="resetPagina();mostrar()"></select>
+        </div>
+        <div class="filtro-item">
+          <span style="font-size:9px;color:var(--primary)">CAT</span>
+          <select id="filtroCat" onchange="resetPagina();mostrar()"></select>
+        </div>
+        <div class="filtro-item">
+          <span style="font-size:9px;color:var(--primary)">SUBCAT</span>
+          <select id="filtroSub" onchange="resetPagina();mostrar()"></select>
+        </div>
+      </div>
+
+      <div id="lista" aria-live="polite"></div>
+      <div id="loader" style="display:none"><div class="spinner"></div></div>
+      <div style="height:250px"></div>
+    </div>
+
+    <div class="footer-controles">
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <button class="btn-small" onclick="exportarCSV()">📊 EXPORTAR</button>
+        <button class="btn-small" onclick="document.getElementById('inputFile').click()">📥 IMPORTAR</button>
+        <button class="btn-small" onclick="resetTotal()" style="background:#450a0a;color:var(--danger);border-color:var(--danger);flex:.4">⚠️ RESET</button>
+        <input type="file" id="inputFile" class="hidden" onchange="importarCSV(event)" />
+      </div>
+
+      <div class="footer-row">
+        <button class="plus" onclick="abrirGraficos()" aria-label="Ver gráficos"
+                style="width:55px;height:55px;background:var(--gold-metal);font-size:20px">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="black" stroke-width="3">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+        </button>
+
+        <button class="plus" onclick="abrirFormulario()" aria-label="Nuevo registro">+</button>
+        <div id="balance">0.00 €</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulario -->
+  <div id="form" class="hidden">
+    <div class="topbar" id="tituloForm">NUEVO REGISTRO</div>
+    <div class="container">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select id="origen"></select>
+        <input type="date" id="fecha" style="width:45%" onclick="this.showPicker()" />
+      </div>
+
+      <input type="hidden" id="editId" />
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="categoria" onchange="manejarNuevo(this,'categoria')"></select>
+        <button onclick="borrarElemento('categoria')"
+                style="width:70px;height:68px;border-radius:16px;background:var(--danger);border:none;color:#fff;font-size:24px">🗑️</button>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <select id="subcategoria" onchange="manejarNuevo(this,'subcategoria')"></select>
+        <button onclick="borrarElemento('subcategoria')"
+                style="width:70px;height:68px;border-radius:16px;background:var(--danger);border:none;color:#fff;font-size:24px">🗑️</button>
+      </div>
+
+      <input id="importe" type="number" step="0.01" inputmode="decimal" placeholder="0.00 €"
+             style="height:70px!important;font-weight:700" />
+      <textarea id="descripcion" maxlength="200" placeholder="Nota..." style="min-height:100px"></textarea>
+
+      <button onclick="guardar()" style="background:var(--gold-gradient);color:#000;height:70px;width:100%;font-size:22px;margin-top:10px;border:none;font-weight:700;border-radius:16px">GUARDAR</button>
+      <div id="btnEliminarRegistro" class="hidden">
+        <button onclick="eliminarRegistroActual()" style="background:var(--danger);color:#fff;height:60px;width:100%;font-size:18px;margin-top:10px;border:none;font-weight:700;border-radius:16px">ELIMINAR</button>
+      </div>
+      <button onclick="volver()" class="btn-cancel-plate">CANCELAR</button>
+    </div>
+  </div>
+
+  <!-- JS (utils primero) -->
+  <script src="./js/utils.js"></script>
+  <script src="./js/main.js"></script>
+</body>
+</html>
