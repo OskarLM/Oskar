@@ -341,9 +341,7 @@ function renderizarBarrasGraficos(f) {
   let fuente = filtradosGlobal.slice();
   if (hideCasa) fuente = fuente.filter(m => !isCasaCategory(m.c));
 
-  // Totales:
-  // - Cat = TODAS → por CATEGORÍA
-  // - Cat ≠ TODAS → por SUBCATEGORÍA (solo de esa cat)
+  // Totales (gasto < 0): por CATEGORÍA o por SUBCATEGORÍA
   const totales = {};
   if (filtroCat === "TODAS") {
     fuente
@@ -387,7 +385,10 @@ function renderizarBarrasGraficos(f) {
           t4 = val > 500*f ? (val - 500*f) : 0;
 
     return `
-      <div class="card" style="border:none;background:transparent">
+      <div class="card"
+           style="border:none;background:transparent;cursor:pointer"
+           data-label="${esc(label)}"
+           onclick="handleGraficoBarClick(this.dataset.label)">
         <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
           <span>${esc(label)}</span><b>${val.toFixed(2)} €</b>
         </div>
@@ -402,6 +403,68 @@ function renderizarBarrasGraficos(f) {
   }).join("");
 }
 
+function handleGraficoBarClick(label){
+  const selCat = document.getElementById('filtroCat');
+  const actual = selCat?.value || 'TODAS';
+
+  // Paso 1: si estamos en categorías → cambiar selector a esa categoría (drill a subcategorías)
+  if (actual === 'TODAS') {
+    if (selCat) selCat.value = label;
+    resetPagina();
+    mostrar();
+    return;
+  }
+
+  // Paso 2: si ya estamos en subcategorías → abrir detalle de movimientos
+  abrirDetalleMovs(actual, label);
+}
+
+function abrirDetalleMovs(categoria, subcategoria){
+  try {
+    // Base: movimientos ya filtrados por Mes/Año/Origen (filtradosGlobal)
+    let base = filtradosGlobal.slice();
+    if (hideCasa) base = base.filter(m => !isCasaCategory(m.c));
+
+    // Solo gastos de esa categoría/subcategoría (como el gráfico)
+    const lista = base
+      .filter(m => m.imp < 0 && m.c === categoria && m.s === subcategoria)
+      .sort((a,b)=> new Date(b.f) - new Date(a.f));
+
+    const total = lista.reduce((acc,m)=>acc + Math.abs(m.imp), 0);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'premium-overlay'; // reutilizamos estilos premium (ya están en tu CSS)
+    overlay.innerHTML = `
+      <div class="premium-content" style="max-height:80vh;overflow:auto;text-align:left">
+        <div class="premium-title" style="text-align:center">
+          ${esc(categoria)} / ${esc(subcategoria)}
+        </div>
+        <div style="font-weight:900;color:var(--primary);text-align:center;margin-bottom:10px">
+          Total: ${total.toFixed(2)} €
+        </div>
+        <div id="detalleLista">
+          ${
+            lista.length
+              ? lista.map(m => `
+                  <div class="card" style="margin:10px 0;border-left-color:var(--danger)">
+                    <div class="meta">${esc(m.f.split("-").reverse().join("/"))} • ${esc(m.o)}</div>
+                    ${m.d ? `<div style="font-size:13px;opacity:.9;margin-bottom:6px">${esc(m.d)}</div>` : ''}
+                    <div class="monto" style="color:var(--danger)">${Math.abs(m.imp).toFixed(2)} €</div>
+                  </div>
+                `).join('')
+              : `<div class="card" style="text-align:center;border:none;opacity:.8">No hay movimientos.</div>`
+          }
+        </div>
+        <button class="btn-silver" id="cerrarDetalle">CERRAR</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#cerrarDetalle').onclick = ()=> overlay.remove();
+  } catch (e) {
+    console.error(e);
+    alert("No se pudo abrir el detalle.");
+  }
+}
 /* ==========================
    GRÁFICOS 2: Columnas + Animación + Tooltip (colores por BALANCE)
 ========================== */
@@ -1304,3 +1367,7 @@ window.toggleCasa = toggleCasa;
 // Backups
 window.guardarCopiaEnOneDrive = guardarCopiaEnOneDrive;
 window.restaurarCopiaDeOneDrive = restaurarCopiaDeOneDrive;
+// Drill-down en gráficos
+window.handleGraficoBarClick = handleGraficoBarClick;
+window.abrirDetalleMovs = abrirDetalleMovs;
+
