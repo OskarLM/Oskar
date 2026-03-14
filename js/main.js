@@ -1,6 +1,12 @@
-// === main.js (Parte 1/3) ===
+// === main.js ===
+//
+// Requiere utils.js con:
+//  - PIN_STORAGE_KEY, PIN_COOLDOWN_KEY
+//  - sha256(pin), getAttempts(), setAttempts(n), isInCooldown(), setCooldown(seg)
 
-// ---------- BASES Y ESTADO ----------
+// ==========================
+// BASES Y ESTADO GLOBAL
+// ==========================
 const subBase = [
   "Accesorios","Agua","Aita","Ajuar / Electrodomésticos","Alojamiento","Apuestas y juegos","Atracciones","Ayuntamiento",
   "Barco","Cajero","Casa","Comida","Comisiones","Comunidad","Copas","Efectivo","Electrónica","Extraescolar","Farmacia",
@@ -12,17 +18,66 @@ const catBase = ["Casa","Caravana","Coche","Compras","Efectivo","Escolar","Garaj
 const mesesLabel = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const origenBase = ["Ingreso","Gasto","Nómina"];
 const NOMINA_CATS = ["Oskar","Josune"];
-const NOMINA_SUBS = [...mesesLabel];
+const NOMINA_SUBS = mesesLabel.slice();
 
 let movimientos = JSON.parse(localStorage.getItem('movimientos')) || [];
-let catExtra = JSON.parse(localStorage.getItem('categoriaExtra')) || [];
-let subMaestra = JSON.parse(localStorage.getItem('subMaestra_v2')) || subBase.slice();
+let catExtra    = JSON.parse(localStorage.getItem('categoriaExtra')) || [];
+let subMaestra  = JSON.parse(localStorage.getItem('subMaestra_v2')) || subBase.slice();
 
 let registrosVisibles = 25;
-let filtradosGlobal = [];
-let pinActual = "";
+let filtradosGlobal   = [];
+let pinActual         = "";
+let hideCasa          = false;  // toggle del botón Casa
 
-// ---------- PIN (requiere utils.js con sha256 y helpers) ----------
+// ==========================
+// UTILIDADES / NORMALIZACIÓN
+// ==========================
+const normalizeKey = (s) => (s ?? "")
+  .toString().trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[^\p{L}\p{N}]+/gu,' ')
+  .replace(/\s+/g,' ').trim();
+
+const singularizeWordEs = (w) => {
+  if (w.endsWith('iones')) return w.slice(0,-5)+'ion';
+  if (w.endsWith('ces'))   return w.slice(0,-3)+'z';
+  if (w.endsWith('es'))    return w.slice(0,-2);
+  if (/[aeiou]s$/.test(w)) return w.slice(0,-1);
+  return w;
+};
+
+const canonicalizeLabel = (s) => {
+  const raw = normalizeKey(s);
+  return raw
+    .split(/([\/-])/g)
+    .map(tok => (tok==='/' || tok==='-') ? tok : tok.split(' ').map(singularizeWordEs).join(' '))
+    .join(' ')
+    .replace(/\s*\/\s*/g,'/')
+    .replace(/\s*-\s*/g,'-')
+    .trim();
+};
+
+const mostrarBonito = (s) => {
+  const t = (s ?? '').toString().trim();
+  if (!t) return t;
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+};
+
+const buildCanonIndex = (preferida=[], secundaria=[]) => {
+  const map = new Map();
+  const add = (v) => { const k = canonicalizeLabel(v); if (!map.has(k)) map.set(k, v); };
+  preferida.forEach(add); secundaria.forEach(add);
+  return map;
+};
+
+function esc(s){
+  const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+  return (s ?? '').toString().replace(/[&<>"']/g, ch => map[ch]);
+}
+
+// ==========================
+// PIN + BIOMETRÍA (BÁSICO)
+// ==========================
 async function ensureDefaultPinHash() {
   const pinHash = localStorage.getItem(PIN_STORAGE_KEY);
   if (!pinHash) {
@@ -31,7 +86,8 @@ async function ensureDefaultPinHash() {
   }
 }
 const updateDots = () => {
-  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('filled', i < pinActual.length));
+  const dots = document.querySelectorAll('.dot');
+  for (let i=0;i<dots.length;i++) dots[i].classList.toggle('filled', i < pinActual.length);
 };
 const clearPin = () => { pinActual = ""; updateDots(); };
 const unlock = () => {
@@ -59,77 +115,43 @@ async function verifyAndUnlock(pinPlain) {
   } else {
     const prev = getAttempts() + 1;
     setAttempts(prev);
-    if (prev >= 5) {
-      setCooldown(60); setAttempts(0);
-      alert("Demasiados intentos fallidos. Bloqueo temporal de 60 segundos.");
-    } else {
-      alert("PIN incorrecto");
-    }
+    if (prev >= 5) { setCooldown(60); setAttempts(0); alert("Demasiados intentos fallidos. Bloqueo temporal de 60 segundos."); }
+    else alert("PIN incorrecto");
   }
 }
 const pressPin = async (n) => {
   const remain = (typeof isInCooldown === 'function') ? isInCooldown() : 0;
   if (remain > 0) { const s = Math.ceil(remain / 1000); alert(`Bloqueado temporalmente. Espera ${s} s.`); return; }
   if (pinActual.length < 4) {
-    pinActual += String(n); updateDots();
-    if (pinActual.length === 4) { const c = pinActual; clearPin(); await ensureDefaultPinHash(); verifyAndUnlock(c); }
+    pinActual += String(n);
+    updateDots();
+    if (pinActual.length === 4) {
+      const candidate = pinActual;
+      clearPin();
+      await ensureDefaultPinHash();
+      verifyAndUnlock(candidate);
+    }
   }
 };
 const biometricAuth = async () => {
   try {
     if (!window.isSecureContext || !window.PublicKeyCredential) {
-      alert("Biometría no disponible (requiere HTTPS y dispositivo compatible)."); return;
+      alert("Biometría no disponible (requiere HTTPS y dispositivo compatible).");
+      return;
     }
     alert("Biometría no implementada aún.");
-  } catch(e){ console.error(e); alert("Error de biometría"); }
+  } catch (e) {
+    console.error(e); alert("Error de biometría");
+  }
 };
 document.addEventListener('DOMContentLoaded', () => {
   ensureDefaultPinHash().catch(console.error);
   updateDots();
 });
 
-// ---------- UTILIDADES ----------
-const normalizeKey = (s) => (s ?? "")
-  .toString().trim().toLowerCase()
-  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-  .replace(/[^\p{L}\p{N}]+/gu,' ')
-  .replace(/\s+/g,' ').trim();
-const singularizeWordEs = (w) => {
-  if (w.endsWith('iones')) return w.slice(0,-5)+'ion';
-  if (w.endsWith('ces')) return w.slice(0,-3)+'z';
-  if (w.endsWith('es')) return w.slice(0,-2);
-  if (/[aeiou]s$/.test(w)) return w.slice(0,-1);
-  return w;
-};
-const canonicalizeLabel = (s) => {
-  const raw = normalizeKey(s);
-  return raw
-    .split(/([\/-])/g)
-    .map(tok => (tok==='/' || tok==='-') ? tok :
-      tok.split(' ').map(singularizeWordEs).join(' '))
-    .join(' ')
-    .replace(/\s*\/\s*/g,'/')
-    .replace(/\s*-\s*/g,'-')
-    .trim();
-};
-const mostrarBonito = (s) => {
-  const t = (s ?? '').toString().trim();
-  if (!t) return t;
-  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
-};
-const buildCanonIndex = (preferida=[], secundaria=[]) => {
-  const map = new Map();
-  const add = (v) => { const k = canonicalizeLabel(v); if (!map.has(k)) map.set(k, v); };
-  preferida.forEach(add); secundaria.forEach(add);
-  return map;
-};
-// escapar texto
-function esc(s){
-  const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
-  return (s ?? '').toString().replace(/[&<>"']/g, ch => map[ch]);
-}
-
-// ---------- ICONOS ----------
+// ==========================
+// ICONOS SVG
+// ==========================
 function iconBars(){
   return `
   <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke="black" stroke-width="3">
@@ -159,28 +181,45 @@ function iconCasa(){
   </svg>`;
 }
 
-// ---------- ESTADO VISTAS ----------
+// ==========================
+// VISTAS Y TOGGLE CASA
+// ==========================
 function setModo(modo){
   const m = document.getElementById("movimientos");
   m.dataset.modo = modo;   // "lista" | "graficos" | "graficos2"
   resetPagina();
   mostrar();
 }
-let hideCasa = false;
 function toggleCasa(){
   hideCasa = !hideCasa;
   const m = document.getElementById("movimientos");
-  if (m && (m.dataset.modo === "graficos" || m.dataset.modo === "graficos2")) {
-    mostrar();
-  }
+  if (m && (m.dataset.modo === "graficos" || m.dataset.modo === "graficos2")) mostrar();
 }
 function isCasaCategory(cat){
   const k = canonicalizeLabel(cat || "");
   return (k.includes("compra casa") || k.includes("compra garaje") || k.includes("venta casa"));
 }
-// === main.js (Parte 2/3) ===
 
-// ---------- LAYOUT FOOTER (sin tocar tu CSS) ----------
+// ==========================
+// LAYOUT FOOTER (AUTOCURACIÓN)
+// ==========================
+function ensureThreePlusButtons() {
+  const fr = document.querySelector('.footer-row');
+  if (!fr) return [];
+  const cs = getComputedStyle(fr);
+  if (cs.position === 'static') fr.style.position = 'relative';
+
+  let plus = fr.querySelectorAll('.plus');
+  for (let i = plus.length; i < 3; i++) {
+    const b = document.createElement('button');
+    b.className = 'plus';
+    b.setAttribute('aria-hidden', 'true');
+    b.style.cssText = 'opacity:0;pointer-events:none;position:absolute;left:-9999px;';
+    fr.appendChild(b);
+  }
+  plus = fr.querySelectorAll('.plus');
+  return plus;
+}
 function layoutFooterReset(btnLeft, btnCenter, btnRight){
   [btnLeft, btnCenter, btnRight].forEach(b=>{
     if (!b) return;
@@ -191,62 +230,64 @@ function layoutFooterReset(btnLeft, btnCenter, btnRight){
     b.style.opacity = "1";
   });
 }
-function ensureRelative(container){
-  if (!container) return;
-  const cs = getComputedStyle(container);
-  if (cs.position === 'static') container.style.position = 'relative';
-}
 function layoutFooterGrafico1(container, btnLeft, btnCenter, btnRight){
   if (!container || !btnLeft || !btnCenter || !btnRight) return;
-  ensureRelative(container);
+  const cs = getComputedStyle(container);
+  if (cs.position === 'static') container.style.position = 'relative';
+
   const W = container.clientWidth || container.offsetWidth || 0;
-  const SIZE = 65;  // diámetro .plus
-  const PAD  = 20;  // margen izq
-  const xLeft = PAD;                        // 0%
-  const xG2   = (W / 2) - (SIZE / 2);      // 50%
+  const SIZE = 65;
+  const PAD  = 20;
+
+  const xLeft = PAD;                          // 0%
+  const xG2   = (W / 2) - (SIZE / 2);        // 50%
   const xCasa = Math.round((xLeft + xG2) / 2); // 25%
 
   [btnLeft, btnCenter, btnRight].forEach(b=>{
-    b.style.position = "absolute";
-    b.style.top = "50%";
-    b.style.transform = "translateY(-50%)";
+    b.style.position = 'absolute';
+    b.style.top = '50%';
+    b.style.transform = 'translateY(-50%)';
   });
   btnLeft.style.left   = `${xLeft}px`;
   btnCenter.style.left = `${xCasa}px`;
   btnRight.style.left  = `${xG2}px`;
-  btnRight.style.opacity = "1";
+  btnRight.style.opacity = '1';
 }
 function layoutFooterGrafico2(container, btnLeft, btnCenter, btnRight){
   if (!container || !btnLeft || !btnCenter || !btnRight) return;
-  ensureRelative(container);
+  const cs = getComputedStyle(container);
+  if (cs.position === 'static') container.style.position = 'relative';
+
   const W = container.clientWidth || container.offsetWidth || 0;
   const SIZE = 65;
   const PAD  = 20;
-  const xLeft = PAD;                        // 0%
-  const xG2   = (W / 2) - (SIZE / 2);      // centro virtual
+
+  const xLeft = PAD;                          // 0%
+  const xG2   = (W / 2) - (SIZE / 2);        // centro virtual
   const xCasa = Math.round((xLeft + xG2) / 2); // 25%
 
   [btnLeft, btnCenter, btnRight].forEach(b=>{
-    b.style.position = "absolute";
-    b.style.top = "50%";
-    b.style.transform = "translateY(-50%)";
+    b.style.position = 'absolute';
+    b.style.top = '50%';
+    b.style.transform = 'translateY(-50%)';
   });
   btnLeft.style.left   = `${xLeft}px`;
   btnCenter.style.left = `${xCasa}px`;
-  // btnRight oculto en gráficos 2
-  btnRight.style.opacity = "0";
-  btnRight.style.left = `-9999px`;
+  btnRight.style.opacity = '0';
+  btnRight.style.left   = `-9999px`;
 }
 
-// ---------- MOSTRAR (lista / graficos / graficos2) ----------
+// ==========================
+// MOSTRAR (LISTA / G1 / G2)
+// ==========================
 function mostrar() {
   const movDiv = document.getElementById("movimientos");
   if (!movDiv || movDiv.dataset.permiso !== "OK") return;
 
   const fsIds = ["filtroMes","filtroAño","filtroCat","filtroSub","filtroOri"];
-  const fs = fsIds.map(id => { const el = document.getElementById(id); return el ? el.value : (id==='filtroMes'?'TODOS':'TODOS'); });
+  const fs = fsIds.map(id => { const el = document.getElementById(id); return el ? el.value : "TODOS"; });
 
-  // Filtrar + ordenar
+  // Filtrado + orden
   filtradosGlobal = (movimientos || [])
     .filter(m => {
       const d = (m.f || "").split("-");
@@ -261,26 +302,26 @@ function mostrar() {
 
   // Balance
   let t = 0;
-  filtradosGlobal
-    .filter(m => hideCasa ? !isCasaCategory(m.c) : true)
-    .forEach(m => t += Number(m.imp)||0 );
+  for (let i=0;i<filtradosGlobal.length;i++){
+    const m = filtradosGlobal[i];
+    if (!hideCasa || !isCasaCategory(m.c)) t += Number(m.imp)||0;
+  }
   const factor = (fs[0] === "TODOS") ? 12 : 1;
   const bD = document.getElementById("balance");
   if (bD){
     bD.innerText = t.toFixed(2) + " €";
     if (t < 0) bD.style.color = "var(--danger)";
-    else if (t <= (750 * factor)) bD.style.color = "var(--warning)";
+    else if (t <= (750 * factor))  bD.style.color = "var(--warning)";
     else if (t <= (1400 * factor)) bD.style.color = "var(--success)";
     else bD.style.color = "var(--electric-blue)";
   }
 
-  // --------- FOOTER ---------
-  const footerRow = document.querySelector(".footer-row");
-  // 👇 MUY IMPORTANTE: tomamos TODOS los .plus (incluye el invisible)
-  const botones = document.querySelectorAll(".footer-row .plus");
-  const btnLeft   = botones[0] || null;
-  const btnCenter = botones[1] || null;
-  const btnRight  = botones[2] || null; // ← éste es el PLUS “fantasma” que usamos para G2
+  // FOOTER (selección robusta + autocuración)
+  const footerRow = document.querySelector('.footer-row');
+  const plus = ensureThreePlusButtons();
+  const btnLeft   = plus[0] || null; // IZQ
+  const btnCenter = plus[1] || null; // CENTRO
+  const btnRight  = plus[2] || null; // DERECHA (puede ser “fantasma”)
 
   const modo = movDiv.dataset.modo || "lista";
   const aplicarEstadoCasa = () => { if (btnCenter) btnCenter.classList.toggle("active", !!hideCasa); };
@@ -294,32 +335,19 @@ function mostrar() {
   layoutFooterReset(btnLeft, btnCenter, btnRight);
 
   if (modo === "graficos") {
-    // ← Atrás
-    if (btnLeft){ btnLeft.innerHTML = iconBack(); btnLeft.onclick = () => setModo("lista"); }
-    // ○ Casa
-    if (btnCenter){
-      btnCenter.innerHTML = iconCasa();
-      btnCenter.classList.add("btn-house-anim");
-      btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); };
-      aplicarEstadoCasa();
-    }
-    // → G2 (en el plus “fantasma”, pero visible al posicionarlo)
-    if (btnRight){ btnRight.innerHTML = iconGraph2(); btnRight.onclick = () => setModo("graficos2"); }
-
+    if (btnLeft){   btnLeft.innerHTML = iconBack();  btnLeft.onclick   = () => setModo("lista"); }
+    if (btnCenter){ btnCenter.innerHTML = iconCasa(); btnCenter.classList.add("btn-house-anim");
+                    btnCenter.onclick   = () => { toggleCasa(); aplicarEstadoCasa(); }; aplicarEstadoCasa(); }
+    if (btnRight){  btnRight.innerHTML  = iconGraph2(); btnRight.onclick = () => setModo("graficos2"); }
   } else if (modo === "graficos2") {
-    if (btnLeft){ btnLeft.innerHTML = iconBack(); btnLeft.onclick = () => setModo("graficos"); }
-    if (btnCenter){
-      btnCenter.innerHTML = iconCasa();
-      btnCenter.classList.add("btn-house-anim");
-      btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); };
-      aplicarEstadoCasa();
-    }
-    if (btnRight){ btnRight.innerHTML = ""; btnRight.onclick = null; }
-
-  } else { // LISTA
-    if (btnLeft){ btnLeft.innerHTML = iconBars(); btnLeft.classList.add("plus-like"); btnLeft.onclick = () => setModo("graficos"); }
+    if (btnLeft){   btnLeft.innerHTML = iconBack();  btnLeft.onclick   = () => setModo("graficos"); }
+    if (btnCenter){ btnCenter.innerHTML = iconCasa(); btnCenter.classList.add("btn-house-anim");
+                    btnCenter.onclick   = () => { toggleCasa(); aplicarEstadoCasa(); }; aplicarEstadoCasa(); }
+    if (btnRight){  btnRight.innerHTML = ""; btnRight.onclick = null; }
+  } else {
+    if (btnLeft){   btnLeft.innerHTML = iconBars(); btnLeft.classList.add("plus-like"); btnLeft.onclick = () => setModo("graficos"); }
     if (btnCenter){ btnCenter.innerHTML = "+"; btnCenter.onclick = () => abrirFormulario(); }
-    if (btnRight){ btnRight.innerHTML = ""; btnRight.onclick = null; }
+    if (btnRight){  btnRight.innerHTML = ""; btnRight.onclick = null; }
   }
 
   // Aplicar layout (solo en gráficos)
@@ -331,17 +359,14 @@ function mostrar() {
     layoutFooterReset(btnLeft, btnCenter, btnRight);
   }
 
-  // --------- RENDER CUERPO ---------
+  // Render contenido
   const listaDiv = document.getElementById("lista");
   if (modo === "graficos" || modo === "graficos2") {
     listaDiv.innerHTML = "";
-    if (modo === "graficos") {
-      renderizarBarrasGraficos((fs[0] === "TODOS") ? 12 : 1);
-    } else {
-      renderizarGraficos2();
-    }
+    if (modo === "graficos") renderizarBarrasGraficos((fs[0] === "TODOS") ? 12 : 1);
+    else renderizarGraficos2();
   } else {
-    listaDiv.innerHTML = filtradosGlobal
+    const rows = filtradosGlobal
       .slice(0, registrosVisibles)
       .map(m => `
       <div class='card' onclick="abrirFormulario('${m.id}')" style="border-left-color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">
@@ -350,6 +375,7 @@ function mostrar() {
         ${m.d ? `<div style="font-size:12px;opacity:.8">${esc(m.d)}</div>` : ''}
         <div class="monto" style="color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">${(Number(m.imp)||0).toFixed(2)} €</div>
       </div>`).join("");
+    listaDiv.innerHTML = rows;
     const loader = document.getElementById("loader");
     if (loader) loader.style.display = "none";
   }
@@ -358,24 +384,26 @@ function mostrar() {
   updateBackupIndicator();
 }
 
-// Recalcular en resize/orientación
-window.addEventListener('resize', ()=>{
+// Recalcular al redimensionar
+window.addEventListener('resize', function(){
   const movDiv = document.getElementById("movimientos");
   if (!movDiv) return;
   const modo = movDiv.dataset.modo || "lista";
   if (modo !== "graficos" && modo !== "graficos2") return;
 
   const footerRow = document.querySelector(".footer-row");
-  const botones = document.querySelectorAll(".footer-row .plus");
-  const btnLeft   = botones[0] || null;
-  const btnCenter = botones[1] || null;
-  const btnRight  = botones[2] || null;
+  const plus = document.querySelectorAll(".footer-row .plus");
+  const btnLeft   = plus[0] || null;
+  const btnCenter = plus[1] || null;
+  const btnRight  = plus[2] || null;
 
   if (modo === "graficos") layoutFooterGrafico1(footerRow, btnLeft, btnCenter, btnRight);
   else layoutFooterGrafico2(footerRow, btnLeft, btnCenter, btnRight);
 });
 
-// ---------- GRÁFICOS 1 ----------
+// ==========================
+// GRÁFICOS 1 (barras) + DRILL
+// ==========================
 function renderizarBarrasGraficos(f) {
   const lista = document.getElementById("lista");
   const elFC = document.getElementById("filtroCat");
@@ -386,12 +414,13 @@ function renderizarBarrasGraficos(f) {
 
   const totales = {};
   if (filtroCat === "TODAS") {
-    fuente.filter(m => m.imp < 0).forEach(m => { totales[m.c] = (totales[m.c] || 0) + Math.abs(m.imp); });
+    for (let m of fuente) if (m.imp < 0) totales[m.c] = (totales[m.c]||0) + Math.abs(m.imp);
   } else {
-    fuente.filter(m => m.imp < 0 && m.c === filtroCat).forEach(m => { totales[m.s] = (totales[m.s] || 0) + Math.abs(m.imp); });
+    for (let m of fuente) if (m.imp < 0 && m.c === filtroCat) totales[m.s] = (totales[m.s]||0) + Math.abs(m.imp);
   }
 
-  const max = Math.max(...Object.values(totales), 1);
+  const vals = Object.values(totales);
+  const max = Math.max(...vals, 1);
   const titulo = (filtroCat === "TODAS") ? "ANÁLISIS DE GASTO POR CATEGORÍAS" : `SUBCATEGORÍAS DE ${filtroCat}`;
 
   let html = `
@@ -408,14 +437,14 @@ function renderizarBarrasGraficos(f) {
     lista.innerHTML += html + `<div class="card" style="text-align:center;border:none"><div style="opacity:.8">No hay datos para los filtros seleccionados.</div></div>`;
     return;
   }
+
   lista.innerHTML += html + items.map(([label,val])=>{
     const t1 = Math.min(val, 50*f),
           t2 = val > 50*f ? Math.min(val - 50*f ,150*f) : 0,
           t3 = val > 200*f ? Math.min(val - 200*f,300*f) : 0,
           t4 = val > 500*f ? (val - 500*f) : 0;
     return `
-      <div class="card" style="border:none;background:transparent;cursor:pointer"
-           data-label="${esc(label)}"
+      <div class="card" style="border:none;background:transparent;cursor:pointer" data-label="${esc(label)}"
            onclick="handleGraficoBarClick(this.dataset.label)">
         <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
           <span>${esc(label)}</span><b>${val.toFixed(2)} €</b>
@@ -443,6 +472,7 @@ function abrirDetalleMovs(categoria, subcategoria){
     const lista = base.filter(m => m.imp < 0 && m.c === categoria && m.s === subcategoria)
                       .sort((a,b)=> new Date(b.f) - new Date(a.f));
     const total = lista.reduce((acc,m)=>acc + Math.abs(m.imp), 0);
+
     const overlay = document.createElement('div');
     overlay.className = 'premium-overlay';
     overlay.innerHTML = `
@@ -472,7 +502,9 @@ function abrirDetalleMovs(categoria, subcategoria){
   }
 }
 
-// ---------- GRÁFICOS 2 ----------
+// ==========================
+// GRÁFICOS 2 (columnas)
+// ==========================
 function renderizarGraficos2() {
   const lista = document.getElementById("lista");
   const oldChart = lista.querySelector('.g2-wrap'); if (oldChart) oldChart.remove();
@@ -482,7 +514,7 @@ function renderizarGraficos2() {
 
   const hoy = new Date();
   const meses = [];
-  for (let i = 12; i >= 0; i--) {
+  for (let i=12; i>=0; i--){
     const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
     meses.push({ d, key });
@@ -497,7 +529,7 @@ function renderizarGraficos2() {
   const base = (hideCasa ? movimientos.filter(mm => !isCasaCategory(mm.c)) : movimientos).filter(filtraOtros);
 
   const sumaMes = new Map();
-  for (const mov of base) {
+  for (let mov of base) {
     const k = (mov.f || "").slice(0,7);
     if (!meses.some(x => x.key === k)) continue;
     sumaMes.set(k, (sumaMes.get(k) || 0) + (Number(mov.imp) || 0));
@@ -505,7 +537,7 @@ function renderizarGraficos2() {
 
   const valores = meses.map(m => sumaMes.get(m.key) || 0);
   const maxAbs = Math.max(...valores.map(v => Math.abs(v)), 1);
-  const alto = 180, mitad = alto/2, maxDespl = Math.max(mitad - 8, 40), minBar = 4;
+  const minBar = 4;
 
   const colorPorMes = (t) => {
     if (t < 0) return "var(--danger)";
@@ -523,7 +555,7 @@ function renderizarGraficos2() {
   `;
   for (const m of meses){
     const v = sumaMes.get(m.key) || 0;
-    const h = Math.max(minBar, (Math.abs(v)/maxAbs)*maxDespl);
+    const h = Math.max(minBar, (Math.abs(v)/maxAbs) * 80); // 80px aprox de mitad
     const pos = v >= 0;
     const color = colorPorMes(v);
     const mesIdx = new Date(m.key + "-01T00:00:00").getMonth();
@@ -542,31 +574,38 @@ function renderizarGraficos2() {
   html += `</div></div>`;
   lista.insertAdjacentHTML('beforeend', html);
 
-  requestAnimationFrame(()=>{
-    lista.querySelectorAll('.g2-chart .g2-bar').forEach(el=>{
-      const target = parseFloat(el.dataset.h) || 0;
-      el.style.height = `${target}px`;
-    });
+  requestAnimationFrame(function(){
+    const bars = lista.querySelectorAll('.g2-chart .g2-bar');
+    for (let i=0;i<bars.length;i++){
+      const el = bars[i];
+      const target = parseFloat(el.getAttribute('data-h')) || 0;
+      el.style.height = target + 'px';
+    }
   });
 
   const chart = lista.querySelector('.g2-chart');
   if (!chart) return;
-  if (!chart.dataset.tipBound){
-    chart.addEventListener('click', (ev)=>{
+  if (!chart.getAttribute('data-tipBound')){
+    chart.addEventListener('click', function(ev){
       const col = ev.target.closest('.g2-col');
       if (!col) return;
-      chart.querySelectorAll('.g2-col.show-tip').forEach(c => { if (c!==col) c.classList.remove('show-tip'); });
+      const open = chart.querySelectorAll('.g2-col.show-tip');
+      for (let i=0;i<open.length;i++) if (open[i]!==col) open[i].classList.remove('show-tip');
       col.classList.toggle('show-tip');
     });
-    document.addEventListener('click', (ev)=>{
-      if (!chart.contains(ev.target)) chart.querySelectorAll('.g2-col.show-tip').forEach(c => c.classList.remove('show-tip'));
+    document.addEventListener('click', function(ev){
+      if (!chart.contains(ev.target)){
+        const open = chart.querySelectorAll('.g2-col.show-tip');
+        for (let i=0;i<open.length;i++) open[i].classList.remove('show-tip');
+      }
     });
-    chart.dataset.tipBound = '1';
+    chart.setAttribute('data-tipBound','1');
   }
 }
-// === main.js (Parte 3/3) ===
 
-// ---------- FORMULARIO / CRUD ----------
+// ==========================
+// FORMULARIO / CRUD
+// ==========================
 const llenar = (id, base, extra, pre = "", opts = {}) => {
   const s = document.getElementById(id);
   const origenActual = opts.origenActual || "";
@@ -584,9 +623,7 @@ const llenar = (id, base, extra, pre = "", opts = {}) => {
   values.sort((a,b)=>a.localeCompare(b,'es')).forEach(v=>{
     s.innerHTML += `<option value="${v}" ${v === pre ? 'selected' : ''}>${v}</option>`;
   });
-  if (pre && !values.includes(pre)) {
-    s.innerHTML += `<option value="${pre}" selected hidden>${pre}</option>`;
-  }
+  if (pre && !values.includes(pre)) s.innerHTML += `<option value="${pre}" selected hidden>${pre}</option>`;
   if (id !== "origen") s.innerHTML += `<option value="+">+ Añadir nuevo...</option>`;
 };
 
@@ -664,7 +701,6 @@ const volver = () => {
   mostrar();
 };
 
-// Añadir nuevo valor vía popup Premium
 const manejarNuevo = (el, tipo) => {
   if (el.value !== "+") return;
   let n = el.dataset.nuevoValor || "";
@@ -684,7 +720,7 @@ const manejarNuevo = (el, tipo) => {
       catExtra.push(pretty);
       localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
     }
-    const origenActual = document.getElementById("origen").value || "";
+    const origenActual = (document.getElementById("origen")||{}).value || "";
     llenar("categoria", catBase, catExtra, pretty, { origenActual });
   } else {
     const subIdx = buildCanonIndex(subMaestra, []);
@@ -692,7 +728,7 @@ const manejarNuevo = (el, tipo) => {
       subMaestra.push(pretty);
       localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
     }
-    const origenActual = document.getElementById("origen").value || "";
+    const origenActual = (document.getElementById("origen")||{}).value || "";
     llenar("subcategoria", subMaestra, [], pretty, { origenActual });
   }
 };
@@ -707,7 +743,7 @@ const borrarElemento = (tipo) => {
     if (idx >= 0) {
       catExtra.splice(idx,1);
       localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-      const origenActual = document.getElementById("origen").value || "";
+      const origenActual = (document.getElementById("origen")||{}).value || "";
       llenar('categoria', catBase, catExtra, "", { origenActual });
     } else {
       alert('Solo puedes borrar categorías añadidas por ti.');
@@ -717,7 +753,7 @@ const borrarElemento = (tipo) => {
     if (idx >= 0) {
       subMaestra.splice(idx,1);
       localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-      const origenActual = document.getElementById("origen").value || "";
+      const origenActual = (document.getElementById("origen")||{}).value || "";
       llenar('subcategoria', subMaestra, [], "", { origenActual });
     }
   }
@@ -730,7 +766,6 @@ const abrirGraficos = () => {
 };
 const resetPagina = () => { registrosVisibles = 25; window.scrollTo(0,0); };
 
-// Listas filtros
 const actualizarListas = () => {
   const fC = document.getElementById("filtroCat"),
         fS = document.getElementById("filtroSub"),
@@ -750,27 +785,29 @@ const actualizarListas = () => {
   }
 };
 
-// Normalización retroactiva
+// ==========================
+// NORMALIZACIÓN RETROACTIVA
+// ==========================
 function normalizarListasExistentes(){
   const vistosCat = new Set(Object.values(catBase).map(v => canonicalizeLabel(v)));
   const nuevaExtra = [];
-  [...new Set(catExtra)].forEach(v=>{
+  const unicosExtra = [...new Set(catExtra)];
+  for (let v of unicosExtra){
     const k = canonicalizeLabel(v);
-    if (vistosCat.has(k)) return;
-    if (![...NOMINA_CATS.map(canonicalizeLabel)].includes(k)){
-      if (!nuevaExtra.some(x => canonicalizeLabel(x)===k)) nuevaExtra.push(v);
-      vistosCat.add(k);
-    }
-  });
+    if (vistosCat.has(k)) continue;
+    if (NOMINA_CATS.map(canonicalizeLabel).indexOf(k) >= 0) continue;
+    if (!nuevaExtra.some(x => canonicalizeLabel(x)===k)) nuevaExtra.push(v);
+    vistosCat.add(k);
+  }
   catExtra = nuevaExtra;
   localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
 
   const vistosSub = new Set();
   const nuevasSubs = [];
-  subMaestra.forEach(v=>{
+  for (let v of subMaestra){
     const k = canonicalizeLabel(v);
     if (!vistosSub.has(k)) { vistosSub.add(k); nuevasSubs.push(v); }
-  });
+  }
   subMaestra = nuevasSubs;
   localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
 
@@ -783,13 +820,18 @@ function normalizarListasExistentes(){
     let c = m.c, s = m.s;
     if (catIndexCanon.has(kc)) c = catIndexCanon.get(kc);
     if (subIndexCanon.has(ks)) s = subIndexCanon.get(ks);
-    if (c!==m.c || s!==m.s){ cambiado = true; return {...m, c, s, ts: Math.max(Date.now(), (m.ts||0)+1)}; }
+    if (c!==m.c || s!==m.s){
+      cambiado = true;
+      return {...m, c, s, ts: Math.max(Date.now(), (m.ts||0)+1)};
+    }
     return m;
   }).sort((a,b)=>new Date(b.f)-new Date(a.f));
   if (cambiado) localStorage.setItem('movimientos', JSON.stringify(movimientos));
 }
 
+// ==========================
 // INIT + SCROLL
+// ==========================
 const init = () => {
   const fM = document.getElementById("filtroMes"),
         fA = document.getElementById("filtroAño"),
@@ -797,7 +839,7 @@ const init = () => {
 
   if (fM){
     fM.innerHTML = '<option value="TODOS">Mes: TODOS</option>';
-    mesesLabel.forEach((m, i) => fM.add(new Option(m, i)));
+    for (let i=0;i<mesesLabel.length;i++) fM.add(new Option(mesesLabel[i], i));
     fM.value = hoy.getMonth();
   }
   if (fA){
@@ -810,17 +852,20 @@ const init = () => {
   actualizarListas();
   mostrar();
 };
-window.onscroll = () => {
+
+window.onscroll = function(){
   const movDiv = document.getElementById("movimientos");
   if (!movDiv || movDiv.dataset.modo === "graficos") return;
   if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200 && registrosVisibles < filtradosGlobal.length) {
     const loader = document.getElementById("loader");
     if (loader) loader.style.display = "block";
-    setTimeout(() => { registrosVisibles += 25; mostrar(); }, 200);
+    setTimeout(function(){ registrosVisibles += 25; mostrar(); }, 200);
   }
 };
 
-// CSV
+// ==========================
+// CSV: EXPORTACIÓN / IMPORTACIÓN
+// ==========================
 const exportarCSV = () => {
   if (!movimientos || movimientos.length === 0) { alert("No hay datos para exportar."); return; }
   const SEP = ";";
@@ -835,6 +880,7 @@ const exportarCSV = () => {
   const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=fileName;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 };
+
 const importarCSV = (e) => {
   const file = e.target.files && e.target.files[0]; if (!file) return;
   const reader = new FileReader();
@@ -843,13 +889,22 @@ const importarCSV = (e) => {
       const text = reader.result.replace(/^\uFEFF/,"");
       const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
       if (!lines.length) { alert("El archivo está vacío."); return; }
+
       const header = lines[0];
       const counts = { tab:(header.match(/\t/g)||[]).length, semi:(header.match(/;/g)||[]).length, comma:(header.match(/,/g)||[]).length };
       let delim = "\t"; if (counts.semi>=counts.tab && counts.semi>=counts.comma) delim=";"; else if (counts.comma>=counts.tab) delim=",";
-      const parseLine = (line) => { const out=[]; let cur="", inQ=false; for(let i=0;i<line.length;i++){ const ch=line[i];
-        if(ch==='"'){ if(inQ && line[i+1]==='"'){ cur+='"'; i++; } else inQ=!inQ; }
-        else if(ch===delim && !inQ){ out.push(cur); cur=""; }
-        else { cur+=ch; } } out.push(cur); return out; };
+
+      const parseLine = (line) => {
+        const out=[]; let cur="", inQ=false;
+        for(let i=0;i<line.length;i++){
+          const ch=line[i];
+          if(ch==='"'){ if(inQ && line[i+1]==='"'){ cur+='"'; i++; } else inQ=!inQ; }
+          else if(ch===delim && !inQ){ out.push(cur); cur=""; }
+          else { cur+=ch; }
+        }
+        out.push(cur); return out;
+      };
+
       const cols = parseLine(header).map(h=>h.trim().toLowerCase());
       const idx = {
         fecha: cols.findIndex(c => c.startsWith("fecha")),
@@ -862,31 +917,54 @@ const importarCSV = (e) => {
       const required = ["fecha","origen","categoria","subcategoria","importe"];
       const missing = required.filter(k => idx[k] < 0);
       if (missing.length) { alert("Faltan columnas: " + missing.join(", ")); return; }
-      const toISODate = (ddmmyyyy) => { const m=ddmmyyyy.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(!m) return ddmmyyyy; return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; };
-      const parseEuroNumber = (s) => { let t=(s||'').toString().trim(); t=t.replace(/\.(?=\d{3}(?:\D|$))/g,''); t=t.replace(',', '.'); const n=parseFloat(t); return isNaN(n)?0:n; };
-      const cleanText = (s) => { if(!s) return ""; let t=s.replace(/\\"{2,}/g,'"').trim(); if(t.startsWith('"') && t.endsWith('"')) t=t.slice(1,-1); return t.trim(); };
+
+      const toISODate = (ddmmyyyy) => {
+        const m=ddmmyyyy.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if(!m) return ddmmyyyy;
+        return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+      };
+      const parseEuroNumber = (s) => {
+        let t=(s||'').toString().trim();
+        t=t.replace(/\.(?=\d{3}(?:\D|$))/g,''); // puntos de miles
+        t=t.replace(',', '.');                  // coma decimal
+        const n=parseFloat(t); return isNaN(n)?0:n;
+      };
+      const cleanText = (s) => {
+        if(!s) return "";
+        let t=s.replace(/\\"{2,}/g,'"').trim();
+        if(t.startsWith('"') && t.endsWith('"')) t=t.slice(1,-1);
+        return t.trim();
+      };
+
       const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
       const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
       const nuevos = [];
+
       for (let i = 1; i < lines.length; i++) {
         const arr = parseLine(lines[i]); if (arr.every(v => (v||'').trim()==='')) continue;
+
         const f = toISODate(cleanText(arr[idx.fecha] ?? ''));
         let o = cleanText(arr[idx.origen] ?? '');
         let c = mostrarBonito(cleanText(arr[idx.categoria] ?? ''));
         let s = mostrarBonito(cleanText(arr[idx.subcategoria] ?? ''));
         let d = cleanText(arr[idx.descripcion] ?? '');
+
         const oLow = o.toLowerCase();
         if (oLow.startsWith('nom')) o='Nómina'; else if (oLow.startsWith('gas')) o='Gasto'; else if (oLow.startsWith('ing')) o='Ingreso';
+
         const keyC = canonicalizeLabel(c), keyS = canonicalizeLabel(s);
         if (catIndexCanon.has(keyC)) c = catIndexCanon.get(keyC);
         if (subIndexCanon.has(keyS)) s = subIndexCanon.get(keyS);
+
         let imp = parseFloat(parseEuroNumber(arr[idx.importe] ?? '0'));
         if (o === 'Gasto' && imp > 0) imp = -Math.abs(imp);
         if (o !== 'Gasto' && imp < 0) imp = Math.abs(imp);
+
         const mov = { id:`id_${Date.now()}_${i}`, f, o, c, s, imp, d, ts: Date.now()+i };
         if (!f || !o || !c || !s || isNaN(imp)) continue;
         nuevos.push(mov);
       }
+
       const addIfNewCanon = (list, storeKey, value) => {
         const k = canonicalizeLabel(value);
         const exists = list.some(v => canonicalizeLabel(v) === k);
@@ -896,9 +974,11 @@ const importarCSV = (e) => {
         if (![...catBase, ...catExtra, ...NOMINA_CATS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.c))) addIfNewCanon(catExtra, 'categoriaExtra', m.c);
         if (![...subMaestra, ...NOMINA_SUBS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.s))) addIfNewCanon(subMaestra, 'subMaestra_v2', m.s);
       });
+
       movimientos = [...movimientos, ...nuevos].sort((a,b)=>new Date(b.f)-new Date(a.f));
       localStorage.setItem('movimientos', JSON.stringify(movimientos));
       actualizarListas(); resetPagina(); mostrar();
+
       alert(`Importación completa: ${nuevos.length} registros añadidos.`);
     } catch (err) {
       console.error(err); alert("Error al importar el CSV. Revisa el formato.");
@@ -908,7 +988,9 @@ const importarCSV = (e) => {
   reader.readAsText(file, 'UTF-8');
 };
 
-// POPUPS Premium / Nómina
+// ==========================
+// POPUPS (Premium / Nómina)
+// ==========================
 (function(){
   const lanzarPopupPremium = (el,tipo) => {
     const overlay=document.createElement('div'); overlay.className='premium-overlay';
@@ -927,12 +1009,13 @@ const importarCSV = (e) => {
     };
     document.getElementById('cancel_premium').onclick=()=>{ el.value=""; close(); };
   };
-  document.addEventListener('change',(e)=>{
+  document.addEventListener('change',function(e){
     if((e.target.id==='categoria'||e.target.id==='subcategoria') && e.target.value === "+"){
       e.stopImmediatePropagation(); lanzarPopupPremium(e.target,e.target.id);
     }
   },true);
 })();
+
 (function(){
   const lanzarPopupNomina = () => {
     const overlay=document.createElement('div'); overlay.className='nomina-overlay';
@@ -949,11 +1032,12 @@ const importarCSV = (e) => {
     document.getElementById('btn_cancel_nom').onclick=()=>{ document.getElementById("origen").value="Gasto";
       llenar('categoria',catBase,catExtra,"",{origenActual:"Gasto"}); llenar('subcategoria',subMaestra,[], "",{origenActual:"Gasto"}); close(); };
   };
-  document.addEventListener('change',(e)=>{
+
+  document.addEventListener('change',function(e){
     if(e.target.id === 'origen'){
       const o = e.target.value;
       if (o === "Nómina") {
-        const fVal = document.getElementById("fecha").value || new Date().toISOString().split("T")[0];
+        const fVal = (document.getElementById("fecha")||{}).value || new Date().toISOString().split("T")[0];
         const mIdx = new Date(fVal + "T00:00:00").getMonth();
         const sub = document.getElementById("subcategoria");
         if (sub) sub.innerHTML = `<option value="${mesesLabel[mIdx]}" selected>${mesesLabel[mIdx]}</option>`;
@@ -966,9 +1050,11 @@ const importarCSV = (e) => {
   },true);
 })();
 
+// ==========================
 // ELIMINAR REGISTRO
+// ==========================
 window.eliminarRegistroActual = function(){
-  const idAEliminar = document.getElementById("editId").value;
+  const idAEliminar = (document.getElementById("editId")||{}).value;
   if (!idAEliminar) return;
   if (confirm("¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTE REGISTRO?")) {
     movimientos = movimientos.filter(m => m.id.toString() !== idAEliminar.toString());
@@ -977,9 +1063,11 @@ window.eliminarRegistroActual = function(){
   }
 };
 
-// BACKUPS (resumen: cifrado + rotativo + descarga)
+// ==========================
+// BACKUPS (cifrado con PIN)
+// ==========================
 function hexToBytes(hex){ const a=[]; for(let i=0;i<hex.length;i+=2) a.push(parseInt(hex.slice(i,i+2),16)); return new Uint8Array(a); }
-function bytesToBase64(bytes){ if (typeof btoa==='function'){ let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b)); return btoa(bin); } else { return Buffer.from(bytes).toString('base64'); } }
+function bytesToBase64(bytes){ if (typeof btoa==='function'){ let bin=''; for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]); return btoa(bin); } else { return Buffer.from(bytes).toString('base64'); } }
 function base64ToBytes(b64){ if (typeof atob==='function'){ const bin=atob(b64); const out=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i); return out; } else { return new Uint8Array(Buffer.from(b64,'base64')); } }
 
 async function getAesKeyFromPin(){
@@ -1034,6 +1122,7 @@ async function guardarCopiaEnOneDrive(){
     const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
     const filename=`backup_onedrive_${YYYY}-${MM}-${DD}_${hh}-${mm}.json`;
     const blob=new Blob([JSON.stringify(enc,null,2)],{type:'application/json'});
+
     if (window.showSaveFilePicker){
       const handle = await window.showSaveFilePicker({ suggestedName:filename, types:[{description:"JSON Backup", accept:{"application/json":[".json"]}}] });
       const writable = await handle.createWritable(); await writable.write(blob); await writable.close();
@@ -1054,9 +1143,10 @@ async function restaurarCopiaDeOneDrive(){
       const [handle] = await window.showOpenFilePicker({ multiple:false, types:[{description:"JSON Backup", accept:{"application/json":[".json"]}}] });
       file = await handle.getFile();
     } else {
-      file = await new Promise((resolve,reject)=>{
+      file = await new Promise(function(resolve,reject){
         const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json';
-        inp.onchange=()=>resolve(inp.files[0]); inp.click(); setTimeout(()=>{ if(!inp.files || !inp.files[0]) reject(new Error("No file")); },20000);
+        inp.onchange=function(){ resolve(inp.files[0]); }; inp.click();
+        setTimeout(function(){ if(!inp.files || !inp.files[0]) reject(new Error("No file")); },20000);
       });
     }
     const text=await file.text(); const payload=JSON.parse(text);
@@ -1085,32 +1175,46 @@ function ensureBackupIndicator(){
     span.innerHTML=`<span class="dot"></span><span class="txt">Última copia: —</span>`; top.appendChild(span);
   }
 }
-function humanAgo(ts){ if (!ts) return "—"; const diff=Date.now()-ts, s=Math.floor(diff/1000); if (s<60) return `hace ${s}s`;
-  const m=Math.floor(s/60); if (m<60) return `hace ${m}m`; const h=Math.floor(m/60); return `hace ${h}h`; }
+function humanAgo(ts){
+  if (!ts) return "—";
+  const diff=Date.now()-ts, s=Math.floor(diff/1000);
+  if (s<60) return `hace ${s}s`;
+  const m=Math.floor(s/60); if (m<60) return `hace ${m}m`;
+  const h=Math.floor(m/60); return `hace ${h}h`;
+}
 function updateBackupIndicator(){
   const el=document.getElementById('backupIndicator'); if (!el) return;
   const ts=parseInt(localStorage.getItem('backup_last_ts')||'0',10);
   el.querySelector('.txt').textContent=`Última copia: ${humanAgo(ts)}`;
   el.classList.remove('stale','old');
   if (!ts) el.classList.add('old');
-  else { const mins=(Date.now()-ts)/60000; if (mins>1440) el.classList.add('old'); else if (mins>60) el.classList.add('stale'); }
+  else {
+    const mins=(Date.now()-ts)/60000;
+    if (mins>1440) el.classList.add('old');
+    else if (mins>60) el.classList.add('stale');
+  }
 }
 setInterval(updateBackupIndicator, 60000);
 
-// SW (si existe)
+// ==========================
+// SERVICE WORKER (PWA)
+// ==========================
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.error("SW ERROR:", err));
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(err){ console.error("SW ERROR:", err); });
   });
 }
 
-// --------- NO-OP para mantener compatibilidad con tu botón RESET ---------
-function resetTotal(){ /* sin operación; preserva UI antigua */ }
+// ==========================
+// COMPAT (RESET) + EXPORTAR AL GLOBAL
+// ==========================
+function resetTotal(){ /* no-op para compatibilidad con tu botón RESET */ }
 
-// --------- EXPONER AL GLOBAL ---------
+// PIN
 window.pressPin = pressPin;
 window.clearPin = clearPin;
 window.biometricAuth = biometricAuth;
+// Navegación y acciones
 window.resetPagina = resetPagina;
 window.mostrar = mostrar;
 window.abrirFormulario = abrirFormulario;
@@ -1123,9 +1227,12 @@ window.abrirGraficos = abrirGraficos;
 window.ejecutarBackupRotativo = ejecutarBackupRotativo;
 window.init = init;
 window.actualizarListas = actualizarListas;
+// Vistas/Modo
 window.setModo = setModo;
 window.toggleCasa = toggleCasa;
+// Gráficos (drill)
 window.handleGraficoBarClick = handleGraficoBarClick;
 window.abrirDetalleMovs = abrirDetalleMovs;
+// Backups
 window.guardarCopiaEnOneDrive = guardarCopiaEnOneDrive;
 window.restaurarCopiaDeOneDrive = restaurarCopiaDeOneDrive;
