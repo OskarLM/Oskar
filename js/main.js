@@ -237,7 +237,9 @@ function mostrar() {
     })
     .sort((a,b) => new Date(b.f) - new Date(a.f));
 
-  filtradosGlobal.forEach(m => t += m.imp);
+  filtradosGlobal
+  .filter(m => hideCasa ? !isCasaCategory(m.c) : true)
+  .forEach(m => t += m.imp);
 
   // Color del balance (topbar)
   const factor = (fs[0] === "TODOS") ? 12 : 1;
