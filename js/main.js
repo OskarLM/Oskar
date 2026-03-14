@@ -28,7 +28,7 @@ let pinActual = "";
 /* ==========================
    PIN V0.1 (hasheado + intentos + cooldown)
 ========================== */
-// Requiere: PIN_STORAGE_KEY, PIN_COOLDOWN_KEY, sha256, getAttempts, setAttempts, isInCooldown, setCooldown (utils.js)
+// Requiere utils.js: PIN_STORAGE_KEY, PIN_COOLDOWN_KEY, sha256, getAttempts, setAttempts, isInCooldown, setCooldown
 async function ensureDefaultPinHash() {
   const pinHash = localStorage.getItem(PIN_STORAGE_KEY);
   if (!pinHash) {
@@ -110,7 +110,7 @@ async function verifyAndUnlock(pinPlain) {
     const prev = getAttempts() + 1;
     setAttempts(prev);
     if (prev >= 5) {
-      setCooldown(60);
+      setCooldown(60); // 60s
       setAttempts(0);
       alert("Demasiados intentos fallidos. Bloqueo temporal de 60 segundos.");
     } else {
@@ -187,7 +187,6 @@ function iconCasa(){
     <path d="M5 10.5 V20 H10 V15 H14 V20 H19 V10.5" />
   </svg>`;
 }
-
 function setModo(modo){
   const m = document.getElementById("movimientos");
   m.dataset.modo = modo;   // "lista" | "graficos" | "graficos2"
@@ -224,7 +223,7 @@ function mostrar() {
 
   const fs = ["filtroMes","filtroAño","filtroCat","filtroSub","filtroOri"].map(id => document.getElementById(id).value);
 
-  let t = 0;
+  // Filtrado base para vistas
   filtradosGlobal = movimientos
     .filter(m => {
       const d = m.f.split("-");
@@ -237,11 +236,12 @@ function mostrar() {
     })
     .sort((a,b) => new Date(b.f) - new Date(a.f));
 
+  // Balance (con toggle Casa aplicado)
+  let t = 0;
   filtradosGlobal
-  .filter(m => hideCasa ? !isCasaCategory(m.c) : true)
-  .forEach(m => t += m.imp);
+    .filter(m => hideCasa ? !isCasaCategory(m.c) : true)
+    .forEach(m => t += m.imp);
 
-  // Color del balance (topbar)
   const factor = (fs[0] === "TODOS") ? 12 : 1;
   const bD = document.getElementById("balance");
   bD.innerText = t.toFixed(2) + " €";
@@ -250,145 +250,66 @@ function mostrar() {
   else if (t <= (1400 * factor)) bD.style.color = "var(--success)";
   else bD.style.color = "var(--electric-blue)";
 
-  // Footer dinámico
-// === FOOTER DINÁMICO (actualizado con botón Casa centrado y animado) ===
-const btnLeft  = document.querySelector(".footer-row .plus:nth-child(1)");
-const btnCenter= document.querySelector(".footer-row .plus:nth-child(2)");
-const btnRight = document.querySelector(".footer-row .plus:nth-child(3)");
+  // === FOOTER DINÁMICO (3 botones .plus en el grid) ===
+  const btnLeft  = document.querySelector(".footer-row .plus:nth-child(1)");
+  const btnCenter= document.querySelector(".footer-row .plus:nth-child(2)");
+  const btnRight = document.querySelector(".footer-row .plus:nth-child(3)");
 
-function aplicarEstadoCasa() {
-  if (hideCasa) btnCenter.classList.add("active");
-  else btnCenter.classList.remove("active");
-}
+  const modo = movDiv.dataset.modo || "lista";
 
-// Limpieza
-[btnLeft, btnCenter, btnRight].forEach(b => {
-  if (!b) return;
-  b.onclick = null;
-  b.style.opacity = "1";
-  b.classList.remove("plus-like","btn-house-anim","active");
-});
+  function aplicarEstadoCasa(){ if (btnCenter) btnCenter.classList.toggle("active", !!hideCasa); }
 
-/* --------------------------
-      MODO GRÁFICOS 1
---------------------------- */
-if (modo === "graficos") {
+  [btnLeft, btnCenter, btnRight].forEach(b=>{
+    if (!b) return;
+    b.onclick = null; b.style.opacity="1";
+    b.classList.remove("plus-like","btn-house-anim","active");
+  });
 
-  // ← Botón izquierda = ATRÁS
-  btnLeft.innerHTML = iconBack();
-  btnLeft.onclick = () => setModo("lista");
-
-  // ○ Botón centro = CASA (animado)
-  btnCenter.innerHTML = iconCasa();
-  btnCenter.classList.add("btn-house-anim");
-  btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); };
-  aplicarEstadoCasa();
-
-  // → Botón derecha = ir a Gráficos 2
-  btnRight.innerHTML = iconGraph2();
-  btnRight.onclick = () => setModo("graficos2");
-
-}
-
-/* --------------------------
-      MODO GRÁFICOS 2
---------------------------- */
-else if (modo === "graficos2") {
-
-  // ← Botón izquierda = ATRÁS
-  btnLeft.innerHTML = iconBack();
-  btnLeft.onclick = () => setModo("graficos");
-
-  // ○ Casa (igual que en gráficos 1)
-  btnCenter.innerHTML = iconCasa();
-  btnCenter.classList.add("btn-house-anim");
-  btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); };
-  aplicarEstadoCasa();
-
-  // → Botón derecha = vacío (sin "+")
-  btnRight.innerHTML = "";
-  btnRight.style.opacity = "0";
-  btnRight.onclick = null;
-}
-
-/* --------------------------
-      MODO LISTA
---------------------------- */
-else {
-
-  // ← Botón “Gráficos” con estilo del botón "+"
-  btnLeft.innerHTML = iconBars();
-  btnLeft.classList.add("plus-like");
-  btnLeft.onclick = () => setModo("graficos");
-
-  // ○ Botón centro = "+"
-  btnCenter.innerHTML = "+";
-  btnCenter.onclick = () => abrirFormulario();
-
-  // → Botón derecho = vacío
-  btnRight.innerHTML = "";
-  btnRight.onclick = null;
-}
-    // ← Gráficos 1 → botón atrás = IGUAL QUE GRÁFICOS 2
-    if (btnLeft){
-      btnLeft.innerHTML = iconBack();   // ANTES: iconBars()
-      btnLeft.setAttribute("aria-label","Volver a lista");
-      btnLeft.onclick = () => setModo("lista");
-    }
-    // botón central = abrir gráficos 2
+  if (modo === "graficos") {
+    // ← Atrás
+    if (btnLeft){ btnLeft.innerHTML = iconBack(); btnLeft.onclick = () => setModo("lista"); }
+    // ○ Casa
     if (btnCenter){
-      btnCenter.innerHTML = iconGraph2();
-      btnCenter.setAttribute("aria-label","Gráficos 2");
-      btnCenter.onclick = () => setModo("graficos2");
+      btnCenter.innerHTML = iconCasa();
+      btnCenter.classList.add("btn-house-anim");
+      btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); };
+      aplicarEstadoCasa();
     }
+    // → Gráficos 2
+    if (btnRight){ btnRight.innerHTML = iconGraph2(); btnRight.onclick = () => setModo("graficos2"); }
 
   } else if (modo === "graficos2") {
-    // ← Gráficos 2 → botón atrás sin cambios
-    if (btnLeft){
-      btnLeft.innerHTML = iconBack();
-      btnLeft.setAttribute("aria-label","Volver a gráficos");
-      btnLeft.onclick = () => setModo("graficos");
-    }
-    // botón + debe desaparecer
+    // ← Atrás
+    if (btnLeft){ btnLeft.innerHTML = iconBack(); btnLeft.onclick = () => setModo("graficos"); }
+    // ○ Casa
     if (btnCenter){
-      btnCenter.innerHTML = "";        // ← vacío
-      btnCenter.onclick = null;        // ← sin acción
-      btnCenter.style.opacity = "0";   // ← invisibilidad total pero mantiene el layout
+      btnCenter.innerHTML = iconCasa();
+      btnCenter.classList.add("btn-house-anim");
+      btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); };
+      aplicarEstadoCasa();
     }
+    // → Vacío (sin +)
+    if (btnRight){ btnRight.innerHTML = ""; btnRight.style.opacity = "0"; btnRight.onclick = null; }
 
-  } else { // → MODO LISTA
-    // botón izquierdo debe ser igual que el botón + (misma estética)
-    if (btnLeft){
-      btnLeft.classList.add("plus-like");   // ← nuevo estilo
-      btnLeft.innerHTML = iconBars();       // ← mismo tamaño que +
-      btnLeft.setAttribute("aria-label","Ver gráficos");
-      btnLeft.onclick = () => setModo("graficos");
-    }
-    // botón central "+" normal
-    if (btnCenter){
-      btnCenter.style.opacity = "1";         // ← asegurarnos de que reaparece
-      btnCenter.innerHTML = "+";            
-      btnCenter.setAttribute("aria-label","Nuevo registro");
-      btnCenter.onclick = () => abrirFormulario();
-    }
+  } else { // LISTA
+    // ← Botón “Gráficos” con estética de “+”
+    if (btnLeft){ btnLeft.innerHTML = iconBars(); btnLeft.classList.add("plus-like"); btnLeft.onclick = () => setModo("graficos"); }
+    // ○ +
+    if (btnCenter){ btnCenter.innerHTML = "+"; btnCenter.onclick = () => abrirFormulario(); }
+    // → vacío
+    if (btnRight){ btnRight.innerHTML = ""; btnRight.onclick = null; }
   }
-  // Render
+
+  // Render contenido
   const listaDiv = document.getElementById("lista");
   if (modo === "graficos" || modo === "graficos2") {
-    // Toolbar "Casa"
-    const toolbarHTML = `
-      <div style="display:flex; gap:12px; align-items:center; justify-content:center; margin:6px 0 14px 0;">
-        <button class="btn-house ${hideCasa ? 'active' : ''}" onclick="toggleCasa()" aria-label="Mostrar/Ocultar casa" title="Casa">
-          ${iconCasa()}
-        </button>
-      </div>
-    `;
-    listaDiv.innerHTML = toolbarHTML;
+    // Barra superior de herramientas (ya no contiene Casa; Casa está en footer)
+    listaDiv.innerHTML = ""; // limpio zona
 
     if (modo === "graficos") {
       renderizarBarrasGraficos((fs[0] === "TODOS") ? 12 : 1);
     } else {
-      renderizarGraficos2(); // columnas con animación + tooltip
+      renderizarGraficos2();
     }
   } else {
     // LISTA
@@ -404,40 +325,30 @@ else {
     document.getElementById("loader").style.display = "none";
   }
 
-  // Indicador de copia
+  // Indicador copia
   ensureBackupIndicator();
   updateBackupIndicator();
 }
 
 /* ==========================
-   GRÁFICOS 1: CATEGORÍAS ↔ SUBCATEGORÍAS (Opción C)
+   GRÁFICOS 1: CATEGORÍAS ↔ SUBCATEGORÍAS (Opción C) + DRILL-DOWN
 ========================== */
 function renderizarBarrasGraficos(f) {
   const lista = document.getElementById("lista");
-
-  // Filtro categoría
   const filtroCat = document.getElementById("filtroCat")?.value || "TODAS";
 
-  // Fuente base y filtro "Casa"
   let fuente = filtradosGlobal.slice();
   if (hideCasa) fuente = fuente.filter(m => !isCasaCategory(m.c));
 
-  // Totales (gasto < 0): por CATEGORÍA o por SUBCATEGORÍA
   const totales = {};
   if (filtroCat === "TODAS") {
-    fuente
-      .filter(m => m.imp < 0)
-      .forEach(m => { totales[m.c] = (totales[m.c] || 0) + Math.abs(m.imp); });
+    fuente.filter(m => m.imp < 0).forEach(m => { totales[m.c] = (totales[m.c] || 0) + Math.abs(m.imp); });
   } else {
-    fuente
-      .filter(m => m.imp < 0 && m.c === filtroCat)
-      .forEach(m => { totales[m.s] = (totales[m.s] || 0) + Math.abs(m.imp); });
+    fuente.filter(m => m.imp < 0 && m.c === filtroCat).forEach(m => { totales[m.s] = (totales[m.s] || 0) + Math.abs(m.imp); });
   }
 
   const max = Math.max(...Object.values(totales), 1);
-  const titulo = (filtroCat === "TODAS")
-    ? "ANÁLISIS DE GASTO POR CATEGORÍAS"
-    : `SUBCATEGORÍAS DE ${filtroCat}`;
+  const titulo = (filtroCat === "TODAS") ? "ANÁLISIS DE GASTO POR CATEGORÍAS" : `SUBCATEGORÍAS DE ${filtroCat}`;
 
   let html = `
     <h2 style="color:var(--primary);font-size:18px;text-align:center">${titulo}</h2>
@@ -450,12 +361,8 @@ function renderizarBarrasGraficos(f) {
   `;
 
   const items = Object.entries(totales).sort((a,b)=>b[1]-a[1]);
-
   if (!items.length) {
-    lista.innerHTML += html + `
-      <div class="card" style="text-align:center;border:none">
-        <div style="opacity:.8">No hay datos para los filtros seleccionados.</div>
-      </div>`;
+    lista.innerHTML += html + `<div class="card" style="text-align:center;border:none"><div style="opacity:.8">No hay datos para los filtros seleccionados.</div></div>`;
     return;
   }
 
@@ -464,7 +371,6 @@ function renderizarBarrasGraficos(f) {
           t2 = val > 50*f ? Math.min(val - 50*f ,150*f) : 0,
           t3 = val > 200*f ? Math.min(val - 200*f,300*f) : 0,
           t4 = val > 500*f ? (val - 500*f) : 0;
-
     return `
       <div class="card"
            style="border:none;background:transparent;cursor:pointer"
@@ -487,45 +393,29 @@ function renderizarBarrasGraficos(f) {
 function handleGraficoBarClick(label){
   const selCat = document.getElementById('filtroCat');
   const actual = selCat?.value || 'TODAS';
-
-  // Paso 1: si estamos en categorías → cambiar selector a esa categoría (drill a subcategorías)
   if (actual === 'TODAS') {
     if (selCat) selCat.value = label;
-    resetPagina();
-    mostrar();
+    resetPagina(); mostrar();
     return;
   }
-
-  // Paso 2: si ya estamos en subcategorías → abrir detalle de movimientos
   abrirDetalleMovs(actual, label);
 }
 
 function abrirDetalleMovs(categoria, subcategoria){
   try {
-    // Base: movimientos ya filtrados por Mes/Año/Origen (filtradosGlobal)
     let base = filtradosGlobal.slice();
     if (hideCasa) base = base.filter(m => !isCasaCategory(m.c));
-
-    // Solo gastos de esa categoría/subcategoría (como el gráfico)
-    const lista = base
-      .filter(m => m.imp < 0 && m.c === categoria && m.s === subcategoria)
-      .sort((a,b)=> new Date(b.f) - new Date(a.f));
-
+    const lista = base.filter(m => m.imp < 0 && m.c === categoria && m.s === subcategoria)
+                      .sort((a,b)=> new Date(b.f) - new Date(a.f));
     const total = lista.reduce((acc,m)=>acc + Math.abs(m.imp), 0);
-
     const overlay = document.createElement('div');
-    overlay.className = 'premium-overlay'; // reutilizamos estilos premium (ya están en tu CSS)
+    overlay.className = 'premium-overlay';
     overlay.innerHTML = `
       <div class="premium-content" style="max-height:80vh;overflow:auto;text-align:left">
-        <div class="premium-title" style="text-align:center">
-          ${esc(categoria)} / ${esc(subcategoria)}
-        </div>
-        <div style="font-weight:900;color:var(--primary);text-align:center;margin-bottom:10px">
-          Total: ${total.toFixed(2)} €
-        </div>
+        <div class="premium-title" style="text-align:center">${esc(categoria)} / ${esc(subcategoria)}</div>
+        <div style="font-weight:900;color:var(--primary);text-align:center;margin-bottom:10px">Total: ${total.toFixed(2)} €</div>
         <div id="detalleLista">
-          ${
-            lista.length
+          ${ lista.length
               ? lista.map(m => `
                   <div class="card" style="margin:10px 0;border-left-color:var(--danger)">
                     <div class="meta">${esc(m.f.split("-").reverse().join("/"))} • ${esc(m.o)}</div>
@@ -542,23 +432,18 @@ function abrirDetalleMovs(categoria, subcategoria){
     document.body.appendChild(overlay);
     overlay.querySelector('#cerrarDetalle').onclick = ()=> overlay.remove();
   } catch (e) {
-    console.error(e);
-    alert("No se pudo abrir el detalle.");
+    console.error(e); alert("No se pudo abrir el detalle.");
   }
 }
+
 /* ==========================
-   GRÁFICOS 2: Columnas + Animación + Tooltip (colores por BALANCE)
+   GRÁFICOS 2: Columnas + Animación + Tooltip + Colores por BALANCE
 ========================== */
 function renderizarGraficos2() {
   const lista = document.getElementById("lista");
-
-  // Limpia render previo dejando toolbar "Casa"
-  const oldChart = lista.querySelector('.g2-wrap');
-  if (oldChart) oldChart.remove();
+  const oldChart = lista.querySelector('.g2-wrap'); if (oldChart) oldChart.remove();
 
   const fs = ["filtroMes","filtroAño","filtroCat","filtroSub","filtroOri"].map(id => document.getElementById(id).value);
-
-  // Últimos 13 meses
   const hoy = new Date();
   const meses = [];
   for (let i = 12; i >= 0; i--) {
@@ -567,7 +452,6 @@ function renderizarGraficos2() {
     meses.push({ d, key });
   }
 
-  // Base filtrada + "Casa"
   const filtraOtros = (m) => {
     const cC = fs[2] === "TODAS" || m.c === fs[2];
     const cS = fs[3] === "TODAS" || m.s === fs[3];
@@ -576,7 +460,6 @@ function renderizarGraficos2() {
   };
   const base = (hideCasa ? movimientos.filter(mm => !isCasaCategory(mm.c)) : movimientos).filter(filtraOtros);
 
-  // Suma mensual
   const sumaMes = new Map();
   for (const mov of base) {
     const k = (mov.f || "").slice(0,7);
@@ -584,14 +467,10 @@ function renderizarGraficos2() {
     sumaMes.set(k, (sumaMes.get(k) || 0) + (Number(mov.imp) || 0));
   }
 
-  // Escala
   const valores = meses.map(m => sumaMes.get(m.key) || 0);
   const maxAbs = Math.max(...valores.map(v => Math.abs(v)), 1);
-  const alto = 180, mitad = alto/2;
-  const maxDespl = Math.max(mitad - 8, 40);
-  const minBar = 4;
+  const alto = 180, mitad = alto/2, maxDespl = Math.max(mitad - 8, 40), minBar = 4;
 
-  // Colores por BALANCE: t<0 rojo | 0..250 naranja | 250.01..750 verde | >750 azul
   const colorPorMes = (t) => {
     if (t < 0) return "var(--danger)";
     if (t <= 250) return "var(--warning)";
@@ -599,24 +478,16 @@ function renderizarGraficos2() {
     return "var(--electric-blue)";
   };
   const mesesCorta = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-  const fmtEuro = (n) => {
-    const val = Number(n) || 0;
-    const sign = val >= 0 ? "+" : "−";
-    const abs = Math.abs(val).toFixed(2).replace(".", ",");
-    return `${sign}${abs} €`;
-  };
+  const fmtEuro = (n) => { const v = Number(n)||0, s = v>=0?"+":"−", a = Math.abs(v).toFixed(2).replace(".",","); return `${s}${a} €`; };
 
-  // Render
   let html = `
     <div class="g2-wrap">
       <div class="g2-chart" style="position:relative;height:180px;display:grid;grid-template-columns:repeat(13,1fr);gap:10px;align-items:center;margin-bottom:26px;">
         <div class="g2-baseline" style="position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(212,175,55,.35)"></div>
   `;
-
   for (const m of meses){
-    const v   = sumaMes.get(m.key) || 0;
-    const abs = Math.abs(v);
-    const h   = Math.max(minBar, (abs / maxAbs) * maxDespl);
+    const v = sumaMes.get(m.key) || 0;
+    const h = Math.max(minBar, (Math.abs(v)/maxAbs)*maxDespl);
     const pos = v >= 0;
     const color = colorPorMes(v);
     const mesIdx = new Date(m.key + "-01T00:00:00").getMonth();
@@ -632,11 +503,9 @@ function renderizarGraficos2() {
       </div>
     `;
   }
-
   html += `</div></div>`;
   lista.insertAdjacentHTML('beforeend', html);
 
-  // Animación de altura
   requestAnimationFrame(()=>{
     lista.querySelectorAll('.g2-chart .g2-bar').forEach(el=>{
       const target = parseFloat(el.dataset.h) || 0;
@@ -644,7 +513,6 @@ function renderizarGraficos2() {
     });
   });
 
-  // Tooltip táctil/click
   const chart = lista.querySelector('.g2-chart');
   if (!chart) return;
   if (!chart.dataset.tipBound){
@@ -727,8 +595,8 @@ const abrirFormulario = (id = null) => {
 
 const guardar = () => {
   const ids = ["editId","origen","categoria","subcategoria","fecha","descripcion","importe"];
-  // ✅ FIX: clave computada [id] (evita "Unexpected token '.'")
-  const v = ids.reduce((acc,id)=>({ ...acc, [id]: (document.getElementById(id) ? document.getElementById(id).value : "") }),{});
+  // FIX compatible (evita Unexpected token '.')
+  const v = ids.reduce((acc,id)=>({ ...acc, (document.getElementById(id) ? document.getElementById(id).value : "") }),{});
   const imp = parseFloat(v.importe);
   if (!v.origen || !v.categoria || !v.subcategoria || isNaN(imp)) return alert("Faltan datos");
 
@@ -761,10 +629,9 @@ const volver = () => {
   mostrar();
 };
 
-/* === “+ Añadir nuevo…” SIN prompt(): el valor lo entrega el popup Premium === */
+/* === “+ Añadir nuevo…” SIN prompt(): popup premium entrega valor === */
 const manejarNuevo = (el, tipo) => {
   if (el.value !== "+") return;
-
   let n = el.dataset.nuevoValor || "";
   el.dataset.nuevoValor = "";
   if (!n) { el.value = ""; return; }
@@ -827,7 +694,6 @@ const abrirGraficos = () => {
   m.dataset.modo = (m.dataset.modo === "graficos") ? "lista" : "graficos";
   mostrar();
 };
-
 const resetPagina = () => { registrosVisibles = 25; window.scrollTo(0,0); };
 
 const actualizarListas = () => {
@@ -837,10 +703,8 @@ const actualizarListas = () => {
 
   fC.innerHTML = '<option value="TODAS">Cat: TODAS</option>';
   [...new Set([...catBase, ...catExtra, ...NOMINA_CATS])].sort().forEach(c => fC.add(new Option(c, c)));
-
   fS.innerHTML = '<option value="TODAS">Sub: TODAS</option>';
   [...new Set([...subMaestra, ...NOMINA_SUBS])].sort().forEach(s => fS.add(new Option(s, s)));
-
   fO.innerHTML = '<option value="TODOS">Ori: TODOS</option>';
   origenBase.forEach(o => fO.add(new Option(o, o)));
 };
@@ -912,18 +776,6 @@ const init = () => {
   actualizarListas();
   mostrar();
 };
-
-const ejecutarBackupRotativo = async () => {
-  try{
-    const enc = await createAndStoreLocalBackup();   // rotativo 1..5 (cifrado)
-    await downloadEncryptedBackup(enc, 'auto_backup'); // descarga automática (cifrado)
-  }catch(e){
-    console.error("Backup automático falló:", e);
-  }
-};
-
-const resetTotal = () => confirm("¿BORRAR TODO?") && (localStorage.clear(), location.reload());
-
 window.onscroll = () => {
   if (document.getElementById("movimientos").dataset.modo === "graficos") return;
   if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200 && registrosVisibles < filtradosGlobal.length) {
@@ -936,43 +788,22 @@ window.onscroll = () => {
    CSV: EXPORTACIÓN / IMPORTACIÓN
 ========================== */
 const exportarCSV = () => {
-  if (!movimientos || movimientos.length === 0) {
-    alert("No hay datos para exportar.");
-    return;
-  }
+  if (!movimientos || movimientos.length === 0) { alert("No hay datos para exportar."); return; }
   const SEP = ";";
-  const toESDate = (iso) => {
-    const [y,m,d] = (iso || "").split("-");
-    return (y && m && d) ? `${d}/${m}/${y}` : (iso || "");
-  };
-  const csvCell = (v) => {
-    let t = (v ?? "").toString().replace(/\r?\n/g, "⏎");
-    if (/[;"\n]/.test(t)) t = '"' + t.replace(/"/g,'""') + '"';
-    return t;
-  };
+  const toESDate = (iso) => { const [y,m,d] = (iso||"").split("-"); return (y&&m&&d)?`${d}/${m}/${y}`:(iso||""); };
+  const csvCell = (v) => { let t=(v??"").toString().replace(/\r?\n/g,"⏎"); if(/[;"\n]/.test(t)) t='"'+t.replace(/"/g,'""')+'"'; return t; };
   const headers = ["Fecha","Origen","Categoria","Subcategoria","Importe","Descripcion"].join(SEP);
-  const rows = movimientos.map(m =>
-    [toESDate(m.f), m.o||"", m.c||"", m.s||"", (Number(m.imp)||0), (m.d??"").trim()]
-      .map(csvCell).join(SEP)
-  );
+  const rows = movimientos.map(m => [toESDate(m.f), m.o||"", m.c||"", m.s||"", (Number(m.imp)||0), (m.d??"").trim()].map(csvCell).join(SEP));
   const csv = [headers, ...rows].join("\n");
-  const hoy = new Date();
-  const dd = String(hoy.getDate()).padStart(2,"0");
-  const mm = String(hoy.getMonth()+1).padStart(2,"0");
-  const yyyy = hoy.getFullYear();
+  const hoy = new Date(), dd=String(hoy.getDate()).padStart(2,"0"), mm=String(hoy.getMonth()+1).padStart(2,"0"), yyyy=hoy.getFullYear();
   const fileName = `mis_gastos_${dd}${mm}${yyyy}.csv`;
-
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = fileName;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=fileName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 };
 
 const importarCSV = (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
+  const file = e.target.files && e.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
     try {
@@ -981,29 +812,13 @@ const importarCSV = (e) => {
       if (!lines.length) { alert("El archivo está vacío."); return; }
 
       const header = lines[0];
-      const counts = {
-        tab:(header.match(/\t/g)||[]).length,
-        semi:(header.match(/;/g)||[]).length,
-        comma:(header.match(/,/g)||[]).length
-      };
-      let delim = "\t";
-      if (counts.tab >= counts.semi && counts.tab >= counts.comma) delim = "\t";
-      else if (counts.semi >= counts.comma) delim = ";";
-      else delim = ",";
+      const counts = { tab:(header.match(/\t/g)||[]).length, semi:(header.match(/;/g)||[]).length, comma:(header.match(/,/g)||[]).length };
+      let delim = "\t"; if (counts.semi>=counts.tab && counts.semi>=counts.comma) delim=";"; else if (counts.comma>=counts.tab) delim=",";
 
-      const parseLine = (line) => {
-        const out = []; let cur = "", inQ = false;
-        for (let i=0;i<line.length;i++){
-          const ch = line[i];
-          if (ch === '"'){
-            if (inQ && line[i+1] === '"'){ cur += '"'; i++; }
-            else inQ = !inQ;
-          } else if (ch === delim && !inQ) { out.push(cur); cur = ""; }
-          else { cur += ch; }
-        }
-        out.push(cur);
-        return out;
-      };
+      const parseLine = (line) => { const out=[]; let cur="", inQ=false; for(let i=0;i<line.length;i++){ const ch=line[i];
+        if(ch==='"'){ if(inQ && line[i+1]==='"'){ cur+='"'; i++; } else inQ=!inQ; }
+        else if(ch===delim && !inQ){ out.push(cur); cur=""; }
+        else { cur+=ch; } } out.push(cur); return out; };
 
       const cols = parseLine(header).map(h=>h.trim().toLowerCase());
       const idx = {
@@ -1018,83 +833,47 @@ const importarCSV = (e) => {
       const missing = required.filter(k => idx[k] < 0);
       if (missing.length) { alert("Faltan columnas: " + missing.join(", ")); return; }
 
-      const toISODate = (ddmmyyyy) => {
-        const m = ddmmyyyy.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (!m) return ddmmyyyy;
-        return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-      };
-      const parseEuroNumber = (s) => {
-        let t = (s || '').toString().trim();
-        t = t.replace(/\.(?=\d{3}(?:\D|$))/g, ''); // miles
-        t = t.replace(',', '.'); // decimal
-        const n = parseFloat(t);
-        return isNaN(n) ? 0 : n;
-      };
-      const cleanText = (s) => {
-        if (!s) return "";
-        let t = s.replace(/\\"{2,}/g, '"').trim();
-        if (t.startsWith('"') && t.endsWith('"')) t = t.slice(1,-1);
-        return t.trim();
-      };
+      const toISODate = (ddmmyyyy) => { const m=ddmmyyyy.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(!m) return ddmmyyyy; return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; };
+      const parseEuroNumber = (s) => { let t=(s||'').toString().trim(); t=t.replace(/\.(?=\d{3}(?:\D|$))/g,''); t=t.replace(',', '.'); const n=parseFloat(t); return isNaN(n)?0:n; };
+      const cleanText = (s) => { if(!s) return ""; let t=s.replace(/\\"{2,}/g,'"').trim(); if(t.startsWith('"') && t.endsWith('"')) t=t.slice(1,-1); return t.trim(); };
 
       const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
       const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
       const nuevos = [];
 
       for (let i = 1; i < lines.length; i++) {
-        const arr = parseLine(lines[i]);
-        if (arr.every(v => (v || '').trim() === '')) continue;
+        const arr = parseLine(lines[i]); if (arr.every(v => (v||'').trim()==='')) continue;
 
-        const rawFecha = arr[idx.fecha] ?? '';
-        const rawOrigen = arr[idx.origen] ?? '';
-        const rawCat = arr[idx.categoria] ?? '';
-        const rawSub = arr[idx.subcategoria] ?? '';
-        const rawImp = arr[idx.importe] ?? '';
-        const rawDesc = (idx.descripcion >= 0 ? arr[idx.descripcion] : '') ?? '';
-
-        const f = toISODate(cleanText(rawFecha));
-        let o = cleanText(rawOrigen);
-        let c = mostrarBonito(cleanText(rawCat));
-        let s = mostrarBonito(cleanText(rawSub));
-        let d = cleanText(rawDesc);
+        const f = toISODate(cleanText(arr[idx.fecha] ?? ''));
+        let o = cleanText(arr[idx.origen] ?? '');
+        let c = mostrarBonito(cleanText(arr[idx.categoria] ?? ''));
+        let s = mostrarBonito(cleanText(arr[idx.subcategoria] ?? ''));
+        let d = cleanText(arr[idx.descripcion] ?? '');
 
         const oLow = o.toLowerCase();
-        if (oLow.startsWith('nom')) o = 'Nómina';
-        else if (oLow.startsWith('gas')) o = 'Gasto';
-        else if (oLow.startsWith('ing')) o = 'Ingreso';
+        if (oLow.startsWith('nom')) o='Nómina'; else if (oLow.startsWith('gas')) o='Gasto'; else if (oLow.startsWith('ing')) o='Ingreso';
 
-        const keyC = canonicalizeLabel(c);
-        const keyS = canonicalizeLabel(s);
+        const keyC = canonicalizeLabel(c), keyS = canonicalizeLabel(s);
         if (catIndexCanon.has(keyC)) c = catIndexCanon.get(keyC);
         if (subIndexCanon.has(keyS)) s = subIndexCanon.get(keyS);
 
-        let imp = parseFloat(parseEuroNumber(rawImp));
+        let imp = parseFloat(parseEuroNumber(arr[idx.importe] ?? '0'));
         if (o === 'Gasto' && imp > 0) imp = -Math.abs(imp);
         if (o !== 'Gasto' && imp < 0) imp = Math.abs(imp);
 
-        const mov = { id:`id_${Date.now()}_${i}`, f, o, c, s, imp, d, ts: Date.now() + i };
+        const mov = { id:`id_${Date.now()}_${i}`, f, o, c, s, imp, d, ts: Date.now()+i };
         if (!f || !o || !c || !s || isNaN(imp)) continue;
-
         nuevos.push(mov);
       }
 
-      // Añadir posibles categorías/subcategorías nuevas
       const addIfNewCanon = (list, storeKey, value) => {
         const k = canonicalizeLabel(value);
         const exists = list.some(v => canonicalizeLabel(v) === k);
-        if (!exists) {
-          list.push(value);
-          localStorage.setItem(storeKey, JSON.stringify(list));
-        }
+        if (!exists) { list.push(value); localStorage.setItem(storeKey, JSON.stringify(list)); }
       };
-
       nuevos.forEach(m=>{
-        if (![...catBase, ...catExtra, ...NOMINA_CATS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.c))){
-          addIfNewCanon(catExtra, 'categoriaExtra', m.c);
-        }
-        if (![...subMaestra, ...NOMINA_SUBS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.s))){
-          addIfNewCanon(subMaestra, 'subMaestra_v2', m.s);
-        }
+        if (![...catBase, ...catExtra, ...NOMINA_CATS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.c))) addIfNewCanon(catExtra, 'categoriaExtra', m.c);
+        if (![...subMaestra, ...NOMINA_SUBS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.s))) addIfNewCanon(subMaestra, 'subMaestra_v2', m.s);
       });
 
       movimientos = [...movimientos, ...nuevos].sort((a,b)=>new Date(b.f)-new Date(a.f));
@@ -1103,18 +882,15 @@ const importarCSV = (e) => {
 
       alert(`Importación completa: ${nuevos.length} registros añadidos.`);
     } catch (err) {
-      console.error(err);
-      alert("Error al importar el CSV. Revisa el formato.");
-    } finally {
-      e.target.value = "";
-    }
+      console.error(err); alert("Error al importar el CSV. Revisa el formato.");
+    } finally { e.target.value = ""; }
   };
   reader.onerror = () => alert("No se pudo leer el archivo.");
   reader.readAsText(file, 'UTF-8');
 };
 
 /* ==========================
-   POPUPS
+   POPUPS (Premium / Nómina)
 ========================== */
 (function(){
   const lanzarPopupPremium = (el,tipo) => {
@@ -1129,13 +905,8 @@ const importarCSV = (e) => {
     const close = ()=> overlay.remove();
     document.getElementById('confirm_premium').onclick=()=>{
       const n=(document.getElementById('val_premium').value||"").trim();
-      if(n){
-        const select=el;
-        select.dataset.nuevoValor = n;
-        select.value = "+";
-        close();
-        setTimeout(()=>manejarNuevo(select, select.id),0);
-      } else close();
+      if(n){ const select=el; select.dataset.nuevoValor = n; select.value = "+"; close(); setTimeout(()=>manejarNuevo(select, select.id),0); }
+      else close();
     };
     document.getElementById('cancel_premium').onclick=()=>{ el.value=""; close(); };
   };
@@ -1162,7 +933,6 @@ const importarCSV = (e) => {
     document.getElementById('btn_cancel_nom').onclick=()=>{ document.getElementById("origen").value="Gasto";
       llenar('categoria',catBase,catExtra,"",{origenActual:"Gasto"}); llenar('subcategoria',subMaestra,[], "",{origenActual:"Gasto"}); close(); };
   };
-
   document.addEventListener('change',(e)=>{
     if(e.target.id === 'origen'){
       const o = e.target.value;
@@ -1193,53 +963,22 @@ window.eliminarRegistroActual = function(){
 };
 
 /* ==========================
-   BACKUPS (cifrado con el PIN)
+   BACKUPS (cifrado con el PIN, rotativo, auto-descarga, OneDrive)
 ========================== */
-// Helpers base64/hex
-function hexToBytes(hex){
-  const a=[]; for(let i=0;i<hex.length;i+=2) a.push(parseInt(hex.slice(i,i+2),16));
-  return new Uint8Array(a);
-}
-function bytesToBase64(bytes){
-  if (typeof btoa === 'function'){
-    let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
-    return btoa(bin);
-  } else {
-    return Buffer.from(bytes).toString('base64');
-  }
-}
-function base64ToBytes(b64){
-  if (typeof atob === 'function'){
-    const bin = atob(b64); const out = new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
-    return out;
-  } else {
-    return new Uint8Array(Buffer.from(b64,'base64'));
-  }
-}
+function hexToBytes(hex){ const a=[]; for(let i=0;i<hex.length;i+=2) a.push(parseInt(hex.slice(i,i+2),16)); return new Uint8Array(a); }
+function bytesToBase64(bytes){ if (typeof btoa==='function'){ let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b)); return btoa(bin); } else { return Buffer.from(bytes).toString('base64'); } }
+function base64ToBytes(b64){ if (typeof atob==='function'){ const bin=atob(b64); const out=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i); return out; } else { return new Uint8Array(Buffer.from(b64,'base64')); } }
 
 async function getAesKeyFromPin(){
   await ensureDefaultPinHash();
-  const hex = localStorage.getItem(PIN_STORAGE_KEY); // hash hex del PIN
-  const keyBytes = hexToBytes(hex);                  // 32 bytes
+  const hex = localStorage.getItem(PIN_STORAGE_KEY);
+  const keyBytes = hexToBytes(hex);
   return await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt','decrypt']);
 }
-
 function buildBackupObject(){
-  return {
-    meta:{
-      createdAt: new Date().toISOString(),
-      app: "mis-gastos",
-      version: "V1.0.22",
-    },
-    datos:{
-      movimientos,
-      catExtra,
-      subMaestra
-    }
-  };
+  return { meta:{ createdAt:new Date().toISOString(), app:"mis-gastos", version:"V1.0.23" },
+           datos:{ movimientos, catExtra, subMaestra } };
 }
-
 async function encryptBackup(obj){
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await getAesKeyFromPin();
@@ -1247,7 +986,6 @@ async function encryptBackup(obj){
   const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, data);
   return { v:1, alg:'AES-GCM', iv: bytesToBase64(iv), ct: bytesToBase64(new Uint8Array(ct)) };
 }
-
 async function decryptBackup(payload){
   const key = await getAesKeyFromPin();
   const iv = base64ToBytes(payload.iv);
@@ -1255,8 +993,6 @@ async function decryptBackup(payload){
   const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ct);
   return JSON.parse(new TextDecoder().decode(pt));
 }
-
-// Rotativo local backup_1 .. backup_5
 async function createAndStoreLocalBackup(){
   const enc = await encryptBackup(buildBackupObject());
   const idx = ((parseInt(localStorage.getItem('backup_idx')||'0',10)) % 5) + 1;
@@ -1266,146 +1002,86 @@ async function createAndStoreLocalBackup(){
   updateBackupIndicator();
   return enc;
 }
-
-// Descarga cifrada (auto o manual)
 async function downloadEncryptedBackup(enc, prefix='auto_backup'){
-  const d = new Date();
-  const YYYY = d.getFullYear(), MM = String(d.getMonth()+1).padStart(2,'0'), DD = String(d.getDate()).padStart(2,'0');
-  const hh = String(d.getHours()).padStart(2,'0'), mm = String(d.getMinutes()).padStart(2,'0');
-  const filename = `${prefix}_${YYYY}-${MM}-${DD}_${hh}-${mm}.json`;
-  const blob = new Blob([JSON.stringify(enc, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const d=new Date(); const YYYY=d.getFullYear(), MM=String(d.getMonth()+1).padStart(2,'0'), DD=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+  const filename=`${prefix}_${YYYY}-${MM}-${DD}_${hh}-${mm}.json`;
+  const blob=new Blob([JSON.stringify(enc,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
-
-// Botón: Guardar copia en OneDrive (selector)
+const ejecutarBackupRotativo = async () => {
+  try{ const enc=await createAndStoreLocalBackup(); await downloadEncryptedBackup(enc,'auto_backup'); }
+  catch(e){ console.error("Backup automático falló:", e); }
+};
 async function guardarCopiaEnOneDrive(){
   try{
     const enc = await encryptBackup(buildBackupObject());
-    const d = new Date();
-    const YYYY = d.getFullYear(), MM = String(d.getMonth()+1).padStart(2,'0'), DD = String(d.getDate()).padStart(2,'0');
-    const hh = String(d.getHours()).padStart(2,'0'), mm = String(d.getMinutes()).padStart(2,'0');
-    const filename = `backup_onedrive_${YYYY}-${MM}-${DD}_${hh}-${mm}.json`;
-
-    const blob = new Blob([JSON.stringify(enc, null, 2)], {type:'application/json'});
+    const d=new Date(); const YYYY=d.getFullYear(), MM=String(d.getMonth()+1).padStart(2,'0'), DD=String(d.getDate()).padStart(2,'0');
+    const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+    const filename=`backup_onedrive_${YYYY}-${MM}-${DD}_${hh}-${mm}.json`;
+    const blob=new Blob([JSON.stringify(enc,null,2)],{type:'application/json'});
 
     if (window.showSaveFilePicker){
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [{ description: "JSON Backup", accept: {"application/json":[".json"]}}]
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob); await writable.close();
-      localStorage.setItem('backup_last_ts', String(Date.now()));
-      updateBackupIndicator();
-      alert("📁 Copia guardada. Elige OneDrive en el selector para que se sincronice.");
+      const handle = await window.showSaveFilePicker({ suggestedName:filename, types:[{description:"JSON Backup", accept:{"application/json":[".json"]}}] });
+      const writable = await handle.createWritable(); await writable.write(blob); await writable.close();
+      localStorage.setItem('backup_last_ts', String(Date.now())); updateBackupIndicator();
+      alert("📁 Copia guardada. Elige una carpeta OneDrive en el selector para sincronizar.");
     } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      localStorage.setItem('backup_last_ts', String(Date.now()));
-      updateBackupIndicator();
-      alert("Se ha descargado el backup (tu navegador no soporta selección de carpeta).");
+      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      localStorage.setItem('backup_last_ts', String(Date.now())); updateBackupIndicator();
+      alert("Se ha descargado el backup (tu navegador no permite selección de carpeta).");
     }
-  }catch(e){
-    console.error(e);
-    alert("No se pudo guardar la copia de seguridad.");
-  }
+  }catch(e){ console.error(e); alert("No se pudo guardar la copia de seguridad."); }
 }
-
-// Botón: Restaurar copia (selector)
 async function restaurarCopiaDeOneDrive(){
   try{
-    let file = null;
+    let file=null;
     if (window.showOpenFilePicker){
-      const [handle] = await window.showOpenFilePicker({
-        multiple:false,
-        types:[{ description:"JSON Backup", accept:{"application/json":[".json"]} }]
-      });
+      const [handle] = await window.showOpenFilePicker({ multiple:false, types:[{description:"JSON Backup", accept:{"application/json":[".json"]}}] });
       file = await handle.getFile();
     } else {
       file = await new Promise((resolve,reject)=>{
-        const inp = document.createElement('input');
-        inp.type = 'file'; inp.accept = 'application/json';
-        inp.onchange = () => resolve(inp.files[0]);
-        inp.click();
-        setTimeout(()=>{ if(!inp.files || !inp.files[0]) reject(new Error("No file")); }, 20000);
+        const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json';
+        inp.onchange=()=>resolve(inp.files[0]); inp.click(); setTimeout(()=>{ if(!inp.files || !inp.files[0]) reject(new Error("No file")); },20000);
       });
     }
-    const text = await file.text();
-    const payload = JSON.parse(text);
-
-    // Detectar cifrado
-    let data;
-    if (payload && payload.ct && payload.iv){
-      data = await decryptBackup(payload);
-    } else {
-      data = payload; // compatibilidad retro
-    }
-
+    const text=await file.text(); const payload=JSON.parse(text);
+    const data = (payload && payload.ct && payload.iv) ? await decryptBackup(payload) : payload;
     if (!data || !data.datos) throw new Error("Formato de copia inválido");
 
-    // Restaurar
     movimientos = Array.isArray(data.datos.movimientos) ? data.datos.movimientos : [];
     catExtra    = Array.isArray(data.datos.catExtra)    ? data.datos.catExtra    : [];
     subMaestra  = Array.isArray(data.datos.subMaestra)  ? data.datos.subMaestra  : [];
-
     localStorage.setItem('movimientos', JSON.stringify(movimientos));
     localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
     localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-
-    localStorage.setItem('backup_last_ts', String(Date.now()));
-    updateBackupIndicator();
+    localStorage.setItem('backup_last_ts', String(Date.now())); updateBackupIndicator();
 
     actualizarListas(); resetPagina(); mostrar();
     alert("✅ Copia restaurada correctamente.");
   }catch(e){
     if (e && e.name === "AbortError") return;
-    console.error(e);
-    alert("No se pudo restaurar la copia. ¿PIN correcto? ¿Archivo válido?");
+    console.error(e); alert("No se pudo restaurar la copia. ¿PIN correcto? ¿Archivo válido?");
   }
 }
-
-/* ===== Indicador “Última copia” ===== */
 function ensureBackupIndicator(){
-  const top = document.querySelector('.topbar');
-  if (!top) return;
+  const top=document.querySelector('.topbar'); if (!top) return;
   if (!document.getElementById('backupIndicator')){
-    const span = document.createElement('span');
-    span.id = 'backupIndicator';
-    span.className = 'backup-indicator';
-    span.innerHTML = `<span class="dot"></span><span class="txt">Última copia: —</span>`;
-    top.appendChild(span);
+    const span=document.createElement('span'); span.id='backupIndicator'; span.className='backup-indicator';
+    span.innerHTML=`<span class="dot"></span><span class="txt">Última copia: —</span>`; top.appendChild(span);
   }
 }
-function humanAgo(ts){
-  if (!ts) return "—";
-  const diff = Date.now() - ts;
-  const s = Math.floor(diff/1000);
-  if (s < 60) return `hace ${s}s`;
-  const m = Math.floor(s/60);
-  if (m < 60) return `hace ${m}m`;
-  const h = Math.floor(m/60);
-  return `hace ${h}h`;
-}
+function humanAgo(ts){ if (!ts) return "—"; const diff=Date.now()-ts, s=Math.floor(diff/1000); if (s<60) return `hace ${s}s`;
+  const m=Math.floor(s/60); if (m<60) return `hace ${m}m`; const h=Math.floor(m/60); return `hace ${h}h`; }
 function updateBackupIndicator(){
-  const el = document.getElementById('backupIndicator');
-  if (!el) return;
-  const ts = parseInt(localStorage.getItem('backup_last_ts')||'0',10);
-  const txt = el.querySelector('.txt');
-  txt.textContent = `Última copia: ${humanAgo(ts)}`;
+  const el=document.getElementById('backupIndicator'); if (!el) return;
+  const ts=parseInt(localStorage.getItem('backup_last_ts')||'0',10);
+  el.querySelector('.txt').textContent=`Última copia: ${humanAgo(ts)}`;
   el.classList.remove('stale','old');
   if (!ts) el.classList.add('old');
-  else {
-    const mins = (Date.now()-ts)/60000;
-    if (mins > 1440) el.classList.add('old');     // > 24 h
-    else if (mins > 60) el.classList.add('stale'); // > 1 h
-  }
+  else { const mins=(Date.now()-ts)/60000; if (mins>1440) el.classList.add('old'); else if (mins>60) el.classList.add('stale'); }
 }
 setInterval(updateBackupIndicator, 60000);
 
@@ -1425,7 +1101,6 @@ if ('serviceWorker' in navigator) {
 window.pressPin = pressPin;
 window.clearPin = clearPin;
 window.biometricAuth = biometricAuth;
-
 // Navegación y acciones
 window.resetPagina = resetPagina;
 window.mostrar = mostrar;
@@ -1440,15 +1115,12 @@ window.ejecutarBackupRotativo = ejecutarBackupRotativo;
 window.resetTotal = resetTotal;
 window.init = init;
 window.actualizarListas = actualizarListas;
-
 // Vistas/Modo
 window.setModo = setModo;
 window.toggleCasa = toggleCasa;
-
+// Gráficos (drill)
+window.handleGraficoBarClick = handleGraficoBarClick;
+window.abrirDetalleMovs = abrirDetalleMovs;
 // Backups
 window.guardarCopiaEnOneDrive = guardarCopiaEnOneDrive;
 window.restaurarCopiaDeOneDrive = restaurarCopiaDeOneDrive;
-// Drill-down en gráficos
-window.handleGraficoBarClick = handleGraficoBarClick;
-window.abrirDetalleMovs = abrirDetalleMovs;
-
