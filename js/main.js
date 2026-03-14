@@ -251,14 +251,84 @@ function mostrar() {
   else bD.style.color = "var(--electric-blue)";
 
   // Footer dinámico
-  const btnLeft  = document.querySelector(".footer-row .plus:nth-child(1)");
-  const btnCenter= document.querySelector(".footer-row .plus:nth-child(2)");
-  if (btnLeft)  btnLeft.onclick = null;
-  if (btnCenter)btnCenter.onclick = null;
+// === FOOTER DINÁMICO (actualizado con botón Casa centrado y animado) ===
+const btnLeft  = document.querySelector(".footer-row .plus:nth-child(1)");
+const btnCenter= document.querySelector(".footer-row .plus:nth-child(2)");
+const btnRight = document.querySelector(".footer-row .plus:nth-child(3)");
 
-  const modo = movDiv.dataset.modo || "lista";
+function aplicarEstadoCasa() {
+  if (hideCasa) btnCenter.classList.add("active");
+  else btnCenter.classList.remove("active");
+}
 
+// Limpieza
+[btnLeft, btnCenter, btnRight].forEach(b => {
+  if (!b) return;
+  b.onclick = null;
+  b.style.opacity = "1";
+  b.classList.remove("plus-like","btn-house-anim","active");
+});
+
+/* --------------------------
+      MODO GRÁFICOS 1
+--------------------------- */
 if (modo === "graficos") {
+
+  // ← Botón izquierda = ATRÁS
+  btnLeft.innerHTML = iconBack();
+  btnLeft.onclick = () => setModo("lista");
+
+  // ○ Botón centro = CASA (animado)
+  btnCenter.innerHTML = iconCasa();
+  btnCenter.classList.add("btn-house-anim");
+  btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); };
+  aplicarEstadoCasa();
+
+  // → Botón derecha = ir a Gráficos 2
+  btnRight.innerHTML = iconGraph2();
+  btnRight.onclick = () => setModo("graficos2");
+
+}
+
+/* --------------------------
+      MODO GRÁFICOS 2
+--------------------------- */
+else if (modo === "graficos2") {
+
+  // ← Botón izquierda = ATRÁS
+  btnLeft.innerHTML = iconBack();
+  btnLeft.onclick = () => setModo("graficos");
+
+  // ○ Casa (igual que en gráficos 1)
+  btnCenter.innerHTML = iconCasa();
+  btnCenter.classList.add("btn-house-anim");
+  btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); };
+  aplicarEstadoCasa();
+
+  // → Botón derecha = vacío (sin "+")
+  btnRight.innerHTML = "";
+  btnRight.style.opacity = "0";
+  btnRight.onclick = null;
+}
+
+/* --------------------------
+      MODO LISTA
+--------------------------- */
+else {
+
+  // ← Botón “Gráficos” con estilo del botón "+"
+  btnLeft.innerHTML = iconBars();
+  btnLeft.classList.add("plus-like");
+  btnLeft.onclick = () => setModo("graficos");
+
+  // ○ Botón centro = "+"
+  btnCenter.innerHTML = "+";
+  btnCenter.onclick = () => abrirFormulario();
+
+  // → Botón derecho = vacío
+  btnRight.innerHTML = "";
+  btnRight.onclick = null;
+}
     // ← Gráficos 1 → botón atrás = IGUAL QUE GRÁFICOS 2
     if (btnLeft){
       btnLeft.innerHTML = iconBack();   // ANTES: iconBars()
