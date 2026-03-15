@@ -592,7 +592,7 @@ function renderizarBarrasGraficos(f) {
           <div style="width:${(t1/val)*100}%;background:var(--electric-blue)"></div>
           <div style="width:${(t2/val)*100}%;background:var(--success)"></div>
           <div style="width:${(t3/val)*100}%;background:var(--warning)"></div>
-          <div style="width:${(t4/val)*100)%;background:var(--danger)"></div>
+          <div style="width:${(t4/val)*100}%;background:var(--danger)"></div>
         </div>
       </div>
     `;
