@@ -32,6 +32,12 @@ let pinActual         = "";
 let hideCasa          = false;   // toggle botón Casa
 let fullscreenMode    = false;   // oculta filtros + footer
 
+// Helper HTML escape (usado en renders)
+function esc(s){
+  return (s ?? '').toString()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 // ==========================
 //  CIFRADO BACKUP (AES-GCM con PIN)
 // ==========================
@@ -127,10 +133,10 @@ function unlock() {
   m.classList.remove("hidden");
   m.dataset.permiso = "OK";
 
-  // 1) Pintamos de inmediato desde caché (UX rápida)
+  // 1) Pinta al instante desde caché (UX fluida)
   init();
 
-  // 2) En paralelo, intentamos cargar la última copia desde Dropbox (si hay red/sesión)
+  // 2) En paralelo, intenta cargar la última copia desde Dropbox
   loadFromDropboxOnStart({ silent: true });
 }
 async function verifyAndUnlock(pinPlain) {
@@ -618,6 +624,7 @@ function renderizarGraficos2() {
     const cC = fs[2] === "TODAS" || m.c === fs[2];
     const cS = fs[3] === "TODAS" || m.s === fs[3];
     const cO = fs[4] === "TODOS" || m.o === fs[4];
+    // BUG FIX: antes estaba `return cC, cS, cO;`
     return cC && cS && cO;
   };
   const base = (hideCasa ? movimientos.filter(mm => !isCasaCategory(mm.c)) : movimientos).filter(filtraOtros);
@@ -649,7 +656,7 @@ function renderizarGraficos2() {
   `;
   for (const m of meses){
     const v = sumaMes.get(m.key) || 0;
-    const h = Math.max(minBar, (Math.abs(v)/maxAbs) * 80); // altura mitad aprox
+    const h = Math.max(minBar, (Math.abs(v)/maxAbs) * 80);
     const pos = v >= 0;
     const color = colorPorMes(v);
     const mesIdx = new Date(m.key + "-01T00:00:00").getMonth();
@@ -692,20 +699,48 @@ function renderizarGraficos2() {
 // ==========================
 //  FORMULARIO / CRUD
 // ==========================
+
+// 👉 Mueve combos según Origen (arregla Nómina: Oskar/Josune + Mes actual)
+function onOrigenChange(origenValor, { preCat = "", preSub = "" } = {}) {
+  const selCat = document.getElementById("categoria");
+  const selSub = document.getElementById("subcategoria");
+
+  if (origenValor === "Nómina") {
+    // Categoría: solo Oskar / Josune
+    selCat.innerHTML = `<option value="" disabled ${preCat ? '' : 'selected'}>Seleccionar...</option>`;
+    NOMINA_CATS.forEach(c => selCat.innerHTML += `<option value="${c}" ${c===preCat?'selected':''}>${c}</option>`);
+
+    // Subcategoría: meses
+    const mesActual = mesesLabel[new Date().getMonth()];
+    const subSel = preSub || mesActual;
+    selSub.innerHTML = `<option value="" disabled ${subSel ? '' : 'selected'}>Seleccionar...</option>`;
+    NOMINA_SUBS.forEach(m => selSub.innerHTML += `<option value="${m}" ${m===subSel?'selected':''}>${m}</option>`);
+  } else {
+    // Otros orígenes: usa listas habituales (filtrando nómina fuera)
+    llenar("categoria", catBase, catExtra, preCat, { origenActual: origenValor });
+    llenar("subcategoria", subMaestra, [], preSub, { origenActual: origenValor });
+  }
+}
+
 const llenar = (id, base, extra, pre = "", opts = {}) => {
   const s = document.getElementById(id);
   const origenActual = opts.origenActual || "";
   if (!s) return;
+
   s.innerHTML = `<option value="" disabled ${pre === "" ? 'selected' : ''}>Seleccionar...</option>`;
   let values = [...new Set([...base, ...extra])];
+
   if (id === "categoria") {
+    // Si NO es Nómina ocultamos Oskar/Josune del combo normal
     const ocultarNominaCats = origenActual !== "Nómina";
     if (ocultarNominaCats) values = values.filter(v => !NOMINA_CATS.includes(v));
   }
   if (id === "subcategoria") {
+    // Si NO es Nómina ocultamos los 12 meses del combo normal
     const ocultarMeses = origenActual !== "Nómina";
     if (ocultarMeses) values = values.filter(v => !NOMINA_SUBS.includes(v));
   }
+
   values.sort((a,b)=>a.localeCompare(b,'es')).forEach(v=>{
     s.innerHTML += `<option value="${v}" ${v === pre ? 'selected' : ''}>${v}</option>`;
   });
@@ -719,35 +754,41 @@ const abrirFormulario = (id = null) => {
         btnD= document.getElementById("btnEliminarRegistro");
 
   if (id) {
+    // EDITAR
     let m = movimientos.find(x => x.id.toString() === id.toString());
     document.getElementById("editId").value = m.id;
     document.getElementById("fecha").value = m.f;
+
+    // Origen
     llenar("origen", origenBase, [], m.o);
-    if (NOMINA_CATS.includes(m.c)) {
-      llenar("categoria", catBase, catExtra);
-      document.getElementById("categoria").innerHTML += `<option value="${m.c}" selected>${m.c}</option>`;
-    } else {
-      llenar("categoria", catBase, catExtra, m.c, { origenActual: m.o });
-    }
-    if (m.o === "Nómina") {
-      document.getElementById("subcategoria").innerHTML = `<option value="${m.s}" selected>${m.s}</option>`;
-    } else {
-      llenar("subcategoria", subMaestra, [], m.s, { origenActual: m.o });
-    }
+
+    // Rellena combos según origen (Nómina ⇒ Oskar/Josune + mes)
+    onOrigenChange(m.o, { preCat: m.c, preSub: m.s });
+
     document.getElementById("importe").value = Math.abs(m.imp);
     document.getElementById("descripcion").value = m.d || "";
     btnD.classList.remove("hidden");
   } else {
+    // NUEVO
     document.getElementById("editId").value = "";
     document.getElementById("importe").value = "";
     document.getElementById("descripcion").value = "";
     document.getElementById("fecha").value = new Date().toISOString().split("T")[0];
+
+    // Origen
     llenar("origen", origenBase, []);
-    const oSel = document.getElementById("origen").value || "";
-    llenar("categoria", catBase, catExtra, "", { origenActual: oSel });
-    llenar("subcategoria", subMaestra, [], "", { origenActual: oSel });
+    const origenInicial = (document.getElementById("origen").value || "");
+
+    // Combos según origen actual (si es Nómina, auto‑mes actual)
+    onOrigenChange(origenInicial);
+
     btnD.classList.add("hidden");
   }
+
+  // Cuando el usuario cambie el Origen en el formulario, re‑mapeamos combos
+  const selOrigen = document.getElementById("origen");
+  selOrigen.onchange = () => onOrigenChange(selOrigen.value);
+
   f.classList.remove("hidden");
   mDiv.classList.add("hidden");
 };
@@ -778,7 +819,7 @@ const guardar = () => {
   }
   localStorage.setItem('movimientos', JSON.stringify(movimientos));
 
-  // 🔁 Programa sincronización en segundo plano (Dropbox maestro)
+  // 🔁 Sincroniza en segundo plano (Dropbox maestro)
   scheduleSync('guardar');
 
   volver();
@@ -801,7 +842,7 @@ function eliminarRegistroActual(){
 const volver = () => {
   document.getElementById("form").classList.add("hidden");
   document.getElementById("movimientos").classList.remove("hidden");
-  actualizarListas(); mostrar();
+  actualizarListas(); resetPagina(); mostrar();
 };
 
 const manejarNuevo = (el, tipo) => {
@@ -1054,7 +1095,9 @@ const importarCSV = (e) => {
 
         const keyC = canonicalizeLabel(c), keyS = canonicalizeLabel(s);
         if (catIndexCanon.has(keyC)) c = catIndexCanon.get(keyC);
-        if (subIndexCanon.has(keyS)) s = subIndexCanon.get(ks);
+        // BUG FIX: antes decía get(ks)
+        if (subIndexCanon.has(keyS)) s = subIndexCanon.get(keyS);
+
         let imp = parseFloat(parseEuroNumber(arr[idx.importe] ?? '0'));
         if (o === 'Gasto' && imp > 0) imp = -Math.abs(imp);
         if (o !== 'Gasto' && imp < 0) imp = Math.abs(imp);
@@ -1214,7 +1257,7 @@ async function dbx_getValidAccessToken(){
   return t.access_token || null;
 }
 
-// === Login bajo demanda: SUBIR manual (visible en UI si lo usas)
+// === Login bajo demanda: SUBIR manual (si lo usas en UI)
 async function dropboxUploadEncryptedBackup(){
   try{
     let token = await dbx_getValidAccessToken();
@@ -1244,7 +1287,7 @@ async function dropboxUploadEncryptedBackup(){
   }catch(e){ console.error('Dropbox upload error:', e); alert(String(e?.message || e)); }
 }
 
-// === Login bajo demanda: RESTAURAR manual (visible en UI si lo usas)
+// === Login bajo demanda: RESTAURAR manual (si lo usas en UI)
 async function dropboxDownloadAndRestore(){
   try{
     let token = await dbx_getValidAccessToken();
