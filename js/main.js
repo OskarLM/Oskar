@@ -1,17 +1,12 @@
 // === main.js ===
-//
-// Cambios clave en esta versión:
-// - "Guardar en OneDrive" mantiene el nombre pero AHORA guarda SIEMPRE en local (Descargas) como mis_gastos_backup.json
-// - "Restaurar desde OneDrive" abre un selector de archivo local (sin File Picker avanzado)
-// - Se eliminan manejos de FileSystemFileHandle/IndexedDB/auto-load cloud para compatibilidad total con Pixel
-//
-// Requiere utils.js con:
-//   PIN_STORAGE_KEY, PIN_COOLDOWN_KEY
-//   sha256(pin), getAttempts(), setAttempts(n), isInCooldown(), setCooldown(seg)
+// OskarLM — APK_V0.0 — Soporta Dropbox (PKCE) con login automático bajo demanda.
+// - Si no hay token al subir/restaurar, se lanza dropboxStartLogin() y se sale.
+// - Tras volver del callback y quedar autenticado, repite la acción y subirá/restaurará sin pedir permisos.
+// - Mantiene: PIN, filtros, lista, gráficos, CSV, backups locales, doble‑tap pantalla completa, layout footer.
 
-/* ==========================
-   BASES Y ESTADO GLOBAL
-========================== */
+// ==========================
+//  BASES Y ESTADO GLOBAL
+// ==========================
 const subBase = [
   "Accesorios","Agua","Aita","Ajuar / Electrodomésticos","Alojamiento","Apuestas y juegos","Atracciones","Ayuntamiento",
   "Barco","Cajero","Casa","Comida","Comisiones","Comunidad","Copas","Efectivo","Electrónica","Extraescolar","Farmacia",
@@ -32,12 +27,12 @@ let subMaestra  = JSON.parse(localStorage.getItem('subMaestra_v2')) || subBase.s
 let registrosVisibles = 25;
 let filtradosGlobal   = [];
 let pinActual         = "";
-let hideCasa          = false;   // toggle del botón Casa
-let fullscreenMode    = false;   // pantalla completa (oculta filtros + footer)
+let hideCasa          = false;   // toggle botón Casa
+let fullscreenMode    = false;   // oculta filtros + footer
 
-/* ==========================
-   CIFRADO BACKUP (AES-GCM con PIN)
-========================== */
+// ==========================
+//  CIFRADO BACKUP (AES-GCM con PIN) — reusa utils.js (sha256, etc.)
+// ==========================
 function hexToBytes(hex){ const a=[]; for(let i=0;i<hex.length;i+=2) a.push(parseInt(hex.slice(i,i+2),16)); return new Uint8Array(a); }
 function bytesToBase64(bytes){ if (typeof btoa==='function'){ let bin=''; for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]); return btoa(bin); } else { return Buffer.from(bytes).toString('base64'); } }
 function base64ToBytes(b64){ if (typeof atob==='function'){ const bin=atob(b64); const out=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i); return out; } else { return new Uint8Array(Buffer.from(b64,'base64')); } }
@@ -67,9 +62,9 @@ async function decryptBackup(payload){
   return JSON.parse(new TextDecoder().decode(pt));
 }
 
-/* ==========================
-   UTILIDADES / NORMALIZACIÓN
-========================== */
+// ==========================
+//  UTILIDADES / NORMALIZACIÓN
+// ==========================
 const normalizeKey = (s) => (s ?? "")
   .toString().trim().toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -83,7 +78,6 @@ const singularizeWordEs = (w) => {
   if (/[aeiou]s$/.test(w)) return w.slice(0,-1);
   return w;
 };
-
 const canonicalizeLabel = (s) => {
   const raw = normalizeKey(s);
   return raw
@@ -94,31 +88,25 @@ const canonicalizeLabel = (s) => {
     .replace(/\s*-\s*/g,'-')
     .trim();
 };
-
 const mostrarBonito = (s) => {
   const t = (s ?? '').toString().trim();
   if (!t) return t;
   return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
 };
-
 const buildCanonIndex = (preferida=[], secundaria=[]) => {
   const map = new Map();
   const add = (v) => { const k = canonicalizeLabel(v); if (!map.has(k)) map.set(k, v); };
   preferida.forEach(add); secundaria.forEach(add);
   return map;
 };
-
 function debounce(fn, delay = 150) {
   let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn.apply(null, args), delay);
-  };
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn.apply(null, args), delay); };
 }
 
-/* ==========================
-   PIN + BIOMETRÍA (BÁSICO)
-========================== */
+// ==========================
+//  PIN + BIOMETRÍA (básico)
+// ==========================
 async function ensureDefaultPinHash() {
   const pinHash = localStorage.getItem(PIN_STORAGE_KEY);
   if (!pinHash) {
@@ -128,15 +116,11 @@ async function ensureDefaultPinHash() {
     localStorage.setItem(PIN_STORAGE_KEY, h);
   }
 }
-const updateDots = () => {
-  const dots = document.querySelectorAll('.dot');
-  for (let i=0;i<dots.length;i++) dots[i].classList.toggle('filled', i < pinActual.length);
-};
+const updateDots = () => { const dots=document.querySelectorAll('.dot'); for(let i=0;i<dots.length;i++) dots[i].classList.toggle('filled', i < pinActual.length); };
 const clearPin = () => { pinActual = ""; updateDots(); };
-
 function unlock() {
   const auth = document.getElementById("authOverlay");
-  if (auth) auth.style.display = "none";
+  if (auth) auth.classList.add('hidden');
   const m = document.getElementById("movimientos");
   m.classList.remove("hidden");
   m.dataset.permiso = "OK";
@@ -144,21 +128,12 @@ function unlock() {
 }
 async function verifyAndUnlock(pinPlain) {
   const remainMs = isInCooldown();
-  if (remainMs > 0) {
-    const s = Math.ceil(remainMs / 1000);
-    alert(`Has superado el número de intentos. Espera ${s} s e inténtalo de nuevo.`);
-    return;
-  }
+  if (remainMs > 0) { const s = Math.ceil(remainMs / 1000); alert(`Has superado el número de intentos. Espera ${s} s e inténtalo de nuevo.`); return; }
   await ensureDefaultPinHash();
   const currentHash = localStorage.getItem(PIN_STORAGE_KEY);
   const givenHash = await sha256(pinPlain);
-  if (givenHash === currentHash) {
-    setAttempts(0);
-    localStorage.removeItem(PIN_COOLDOWN_KEY);
-    unlock();
-  } else {
-    const prev = getAttempts() + 1;
-    setAttempts(prev);
+  if (givenHash === currentHash) { setAttempts(0); localStorage.removeItem(PIN_COOLDOWN_KEY); unlock(); }
+  else { const prev = getAttempts() + 1; setAttempts(prev);
     if (prev >= 5) { setCooldown(60); setAttempts(0); alert("Demasiados intentos fallidos. Bloqueo temporal de 60 segundos."); }
     else alert("PIN incorrecto");
   }
@@ -167,40 +142,22 @@ const pressPin = async (n) => {
   const remain = (typeof isInCooldown === 'function') ? isInCooldown() : 0;
   if (remain > 0) { const s = Math.ceil(remain / 1000); alert(`Bloqueado temporalmente. Espera ${s} s.`); return; }
   if (pinActual.length < 4) {
-    pinActual += String(n);
-    updateDots();
-    if (pinActual.length === 4) {
-      const candidate = pinActual;
-      clearPin();
-      await ensureDefaultPinHash();
-      verifyAndUnlock(candidate);
-    }
+    pinActual += String(n); updateDots();
+    if (pinActual.length === 4) { const candidate = pinActual; clearPin(); await ensureDefaultPinHash(); verifyAndUnlock(candidate); }
   }
 };
-const biometricAuth = async () => {
-  try {
-    if (!window.isSecureContext || !window.PublicKeyCredential) {
-      alert("Biometría no disponible (requiere HTTPS y dispositivo compatible).");
-      return;
-    }
-    alert("Biometría no implementada aún.");
-  } catch (e) {
-    console.error(e); alert("Error de biometría");
-  }
-};
+const biometricAuth = async () => { alert("Biometría no implementada aún."); };
 
-/* ==========================
-   GESTOS: Doble‑tap/doble‑click → Pantalla completa
-========================== */
+// ==========================
+//  DOBLE‑TAP / DOBLE‑CLICK → Pantalla completa
+// ==========================
 document.addEventListener('DOMContentLoaded', () => {
   ensureDefaultPinHash().catch(console.error);
   updateDots();
 
-  // Evitar double-tap zoom en móviles
   if (document.documentElement) document.documentElement.style.touchAction = 'manipulation';
   if (document.body) document.body.style.touchAction = 'manipulation';
 
-  // Doble‑tap/doble‑click fuera de controles para alternar pantalla completa
   let _lastTap = 0;
   const TAP_WINDOW = 250; // ms
   const filtrosSel = '.filtros-wrapper';
@@ -211,92 +168,68 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el.closest(filtrosSel) || el.closest(footerSel)) return true;
     return !!el.closest('button, a, select, input, textarea, label, [role="button"], [tabindex]');
   };
-
   const applyUIVisibility = () => {
     const filtros = document.querySelector(filtrosSel);
     const footer  = document.querySelector(footerSel);
     if (filtros) filtros.style.display = fullscreenMode ? 'none' : '';
     if (footer)  footer.style.display  = fullscreenMode ? 'none' : '';
   };
-
   const toggleFullscreenUI = () => {
     fullscreenMode = !fullscreenMode;
     applyUIVisibility();
     requestAnimationFrame(() => mostrar());
     try { sessionStorage.setItem('ui_fullscreen', fullscreenMode ? '1' : '0'); } catch {}
   };
-
-  try {
-    const prev = sessionStorage.getItem('ui_fullscreen');
-    if (prev === '1') { fullscreenMode = true; applyUIVisibility(); }
-  } catch {}
+  try { const prev = sessionStorage.getItem('ui_fullscreen'); if (prev === '1') { fullscreenMode = true; applyUIVisibility(); } } catch {}
 
   window.addEventListener('touchstart', (ev) => {
-    const t = Date.now();
-    const target = ev.target;
+    const t = Date.now(); const target = ev.target;
     if (isInteractive(target)) return;
-    if (t - _lastTap <= TAP_WINDOW) {
-      ev.preventDefault();
-      toggleFullscreenUI();
-      _lastTap = 0;
-    } else {
-      _lastTap = t;
-    }
+    if (t - _lastTap <= TAP_WINDOW) { ev.preventDefault(); toggleFullscreenUI(); _lastTap = 0; } else { _lastTap = t; }
   }, { passive: false });
 
   window.addEventListener('dblclick', (ev) => {
     const target = ev.target;
     if (isInteractive(target)) return;
-    ev.preventDefault();
-    toggleFullscreenUI();
+    ev.preventDefault(); toggleFullscreenUI();
   }, { passive: false });
 });
 
-/* ==========================
-   ICONOS SVG
-========================== */
-function iconBars(){
-  return `
+// ==========================
+//  ICONOS SVG mínimos (para footer dinámico)
+// ==========================
+function iconBars(){ return `
   <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke="black" stroke-width="3">
     <line x1="18" y1="20" x2="18" y2="10"></line>
     <line x1="12" y1="20" x2="12" y2="4"></line>
-    <line x1="6"  y="20" x2="6"  y="14"></line>
-  </svg>`;
-}
-function iconBack(){
-  return `
+    <line x1="6"  y1="20" x2="6"  y2="14"></line>
+  </svg>`; }
+function iconBack(){ return `
   <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke="black" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
     <path d="M15 19l-7-7 7-7"></path>
-  </svg>`;
-}
-function iconGraph2(){
-  return `
+  </svg>`; }
+function iconGraph2(){ return `
   <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke-width="2.6">
     <rect x="6"  y="7" width="4" height="10" fill="#ef4444" stroke="#ef4444" rx="1"></rect>
     <rect x="14" y="5" width="4" height="12" fill="#22c55e" stroke="#22c55e" rx="1"></rect>
-  </svg>`;
-}
-function iconCasa(){
-  return `
+  </svg>`; }
+function iconCasa(){ return `
   <svg viewBox="0 0 24 24">
     <path d="M3 10.5 L12 3 L21 10.5" />
     <path d="M5 10.5 V20 H10 V15 H14 V20 H19 V10.5" />
-  </svg>`;
-}
+  </svg>`; }
 
-/* ==========================
-   VISTAS Y TOGGLE CASA
-========================== */
+// ==========================
+//  VISTAS Y TOGGLE CASA
+// ==========================
 function setModo(modo){
   const m = document.getElementById("movimientos");
-  // Si vamos a entrar en gráficos y venimos de Movimientos, medimos anclajes
   const from = m.dataset.modo || 'lista';
   if ((modo === 'graficos' || modo === 'graficos2') && from === 'lista') {
     captureFooterAnchors();
   }
   m.dataset.modo = modo;   // "lista" | "graficos" | "graficos2"
-  resetPagina();
-  mostrar();
+  resetPagina(); mostrar();
 }
 function toggleCasa(){
   hideCasa = !hideCasa;
@@ -308,9 +241,9 @@ function isCasaCategory(cat){
   return (k.includes("compra casa") || k.includes("compra garaje") || k.includes("venta casa"));
 }
 
-/* ==========================
-   MEDIDAS Y ANCLAJES (Movimientos → Gráficos)
-========================== */
+// ==========================
+//  MEDIDAS Y ANCLAJES (Movimientos → Gráficos)
+// ==========================
 let footerAnchors = { leftX:null, centerX:null, size:65 };
 function captureFooterAnchors(){
   try{
@@ -319,28 +252,26 @@ function captureFooterAnchors(){
     const plus = fr.querySelectorAll('.plus');
     if (!plus[0] || !plus[1]) return;
     const frRect     = fr.getBoundingClientRect();
-    const leftRect   = plus[0].getBoundingClientRect(); // botón Gráficos (izq)
-    const centerRect = plus[1].getBoundingClientRect(); // botón "+" (centro)
+    const leftRect   = plus[0].getBoundingClientRect(); // botón izq
+    const centerRect = plus[1].getBoundingClientRect(); // botón centro
     footerAnchors.leftX   = leftRect.left   - frRect.left;
     footerAnchors.centerX = centerRect.left - frRect.left;
     footerAnchors.size    = Math.round(centerRect.width || 65);
   }catch(e){ console.warn('No se pudieron capturar anclajes:', e); }
 }
 
-/* ==========================
-   LAYOUT FOOTER (AUTOCURACIÓN)
-========================== */
+// ==========================
+//  LAYOUT FOOTER
+// ==========================
 function ensureThreePlusButtons() {
   const fr = document.querySelector('.footer-row');
   if (!fr) return [];
   const cs = getComputedStyle(fr);
   if (cs.position === 'static') fr.style.position = 'relative';
-
   let plus = fr.querySelectorAll('.plus');
   for (let i = plus.length; i < 3; i++) {
     const b = document.createElement('button');
-    b.className = 'plus';
-    b.setAttribute('aria-hidden', 'true');
+    b.className = 'plus'; b.setAttribute('aria-hidden', 'true');
     b.style.cssText = 'opacity:0;pointer-events:none;position:absolute;left:-9999px;';
     fr.appendChild(b);
   }
@@ -349,49 +280,27 @@ function ensureThreePlusButtons() {
 function layoutFooterReset(btnLeft, btnCenter, btnRight){
   [btnLeft, btnCenter, btnRight].forEach(b=>{
     if (!b) return;
-    b.style.position = "";
-    b.style.left = "";
-    b.style.top = "";
-    b.style.transform = "";
-    b.style.opacity = "1";
+    b.style.position = ""; b.style.left = ""; b.style.top = ""; b.style.transform = ""; b.style.opacity = "1";
   });
 }
-
-/* ==========================
-   Normalización tamaños (todos = VOLVER)
-========================== */
 function _normalizarTamaniosFooter(btnLeft, btnCenter, btnRight) {
   if (!btnLeft || !btnCenter || !btnRight) return;
   const r = btnLeft.getBoundingClientRect();
   const size = Math.round(Math.max(r.width, r.height));
-  [btnCenter, btnRight].forEach(b => {
-    if (!b) return;
-    b.style.width = size + 'px';
-    b.style.height = size + 'px';
-    b.style.borderRadius = '50%';
-  });
+  [btnCenter, btnRight].forEach(b => { if (!b) return; b.style.width = size + 'px'; b.style.height = size + 'px'; b.style.borderRadius = '50%'; });
   return size;
 }
-
-/* ==========================
-   CENTRADO REAL (post‑layout)
-========================== */
 function _recentrarCasa(container, btnLeft, btnCenter, btnRight) {
   if (!container || !btnLeft || !btnCenter) return;
-
   requestAnimationFrame(() => {
     _normalizarTamaniosFooter(btnLeft, btnCenter, btnRight);
-
     requestAnimationFrame(() => {
       const fr = container.getBoundingClientRect();
       const l  = btnLeft.getBoundingClientRect();
       const c  = btnCenter.getBoundingClientRect();
-
       let rightRect;
-      const visible = !!(btnRight &&
-                         btnRight.style.display !== 'none' &&
-                         btnRight.style.pointerEvents !== 'none' &&
-                         btnRight.style.opacity !== '0');
+      const visible = !!(btnRight && btnRight.style.display !== 'none' &&
+                         btnRight.style.pointerEvents !== 'none' && btnRight.style.opacity !== '0');
       if (visible) {
         rightRect = btnRight.getBoundingClientRect();
       } else {
@@ -400,74 +309,38 @@ function _recentrarCasa(container, btnLeft, btnCenter, btnRight) {
           : (container.clientWidth / 2) - (c.width / 2);
         rightRect = { left: fr.left + estLeft, width: c.width };
       }
-
       const centerLeft   = (l.left - fr.left) + (l.width  / 2);
       const centerRight  = (rightRect.left - fr.left) + (rightRect.width / 2);
       const centerCasa   = (centerLeft + centerRight) / 2;
-
       const casaLeft = Math.round(centerCasa - (c.width / 2));
       btnCenter.style.left = `${casaLeft}px`;
     });
   });
 }
-
-/* ==========================
-   LAYOUTS (G1 / G2)
-========================== */
 function layoutFooterGrafico1(container, btnLeft, btnCenter, btnRight){
   if (!container || !btnLeft || !btnCenter || !btnRight) return;
   const cs = getComputedStyle(container);
   if (cs.position === 'static') container.style.position = 'relative';
-
   const SIZE  = footerAnchors.size || 65;
   const xLeft = (footerAnchors.leftX   != null) ? footerAnchors.leftX   : 20;
   const xG2   = (footerAnchors.centerX != null) ? footerAnchors.centerX : ((container.clientWidth/2) - (SIZE/2));
-
-  [btnLeft, btnCenter, btnRight].forEach(b=>{
-    b.style.position = 'absolute';
-    b.style.top = '50%';
-    b.style.transform = 'translateY(-50%)';
-  });
-
-  btnLeft.style.left   = `${xLeft}px`;
-  btnRight.style.left  = `${xG2}px`;
-  btnRight.style.display      = '';
-  btnRight.style.opacity      = '1';
-  btnRight.style.pointerEvents= 'auto';
-
-  const cont = document.querySelector('.footer-controles');
-  if (cont) cont.style.display = fullscreenMode ? 'none' : '';
-
+  [btnLeft, btnCenter, btnRight].forEach(b=>{ b.style.position='absolute'; b.style.top='50%'; b.style.transform='translateY(-50%)'; });
+  btnLeft.style.left = `${xLeft}px`;
+  btnRight.style.left = `${xG2}px`; btnRight.style.display=''; btnRight.style.opacity='1'; btnRight.style.pointerEvents='auto';
+  const cont = document.querySelector('.footer-controles'); if (cont) cont.style.display = fullscreenMode ? 'none' : '';
   _recentrarCasa(container, btnLeft, btnCenter, btnRight);
 }
 function layoutFooterGrafico2(container, btnLeft, btnCenter, btnRight){
   if (!container || !btnLeft || !btnCenter || !btnRight) return;
   const cs = getComputedStyle(container);
   if (cs.position === 'static') container.style.position = 'relative';
-
-  const SIZE  = footerAnchors.size || 65;
   const xLeft = (footerAnchors.leftX   != null) ? footerAnchors.leftX   : 20;
-
-  [btnLeft, btnCenter, btnRight].forEach(b=>{
-    b.style.position = 'absolute';
-    b.style.top = '50%';
-    b.style.transform = 'translateY(-50%)';
-  });
-
-  btnLeft.style.left   = `${xLeft}px`;
-  btnRight.style.opacity      = '0';
-  btnRight.style.left         = `-9999px`;
-  btnRight.style.pointerEvents= 'none';
-
-  const cont = document.querySelector('.footer-controles');
-  if (cont) cont.style.display = fullscreenMode ? 'none' : '';
-
+  [btnLeft, btnCenter, btnRight].forEach(b=>{ b.style.position='absolute'; b.style.top='50%'; b.style.transform='translateY(-50%)'; });
+  btnLeft.style.left = `${xLeft}px`;
+  btnRight.style.opacity='0'; btnRight.style.left='-9999px'; btnRight.style.pointerEvents='none';
+  const cont = document.querySelector('.footer-controles'); if (cont) cont.style.display = fullscreenMode ? 'none' : '';
   _recentrarCasa(container, btnLeft, btnCenter, btnRight);
 }
-
-/* ==========================
-   LAYOUT BALANCE (alineado con RESET)
-========================== */
 function getBalanceRightOffset(container){
   try{
     const resetBtn = Array.from(document.querySelectorAll('.footer-controles .btn-small'))
@@ -483,22 +356,17 @@ function layoutBalanceFixed(container, balanceEl){
   const cs = getComputedStyle(container);
   if (cs.position === 'static') container.style.position = 'relative';
   const rightOffset = getBalanceRightOffset(container);
-  balanceEl.style.position  = 'absolute';
-  balanceEl.style.right     = rightOffset + 'px';
-  balanceEl.style.top       = '50%';
-  balanceEl.style.transform = 'translateY(-50%)';
+  balanceEl.style.position='absolute'; balanceEl.style.right= rightOffset + 'px';
+  balanceEl.style.top='50%'; balanceEl.style.transform='translateY(-50%)';
 }
 function layoutBalanceReset(balanceEl){
   if (!balanceEl) return;
-  balanceEl.style.position  = '';
-  balanceEl.style.right     = '';
-  balanceEl.style.top       = '';
-  balanceEl.style.transform = '';
+  balanceEl.style.position=''; balanceEl.style.right=''; balanceEl.style.top=''; balanceEl.style.transform='';
 }
 
-/* ==========================
-   MOSTRAR (LISTA / G1 / G2)
-========================== */
+// ==========================
+//  MOSTRAR (LISTA / G1 / G2)
+// ==========================
 function mostrar() {
   const movDiv = document.getElementById("movimientos");
   if (!movDiv || movDiv.dataset.permiso !== "OK") return;
@@ -532,14 +400,14 @@ function mostrar() {
   const factor = (fs[0] === "TODOS") ? 12 : 1;
   const balanceEl = document.getElementById("balance");
   if (balanceEl){
-    balanceEl.innerText = t.toFixed(2) + " €";
+    balanceEl.textContent = t.toFixed(2) + " €";
     if (t < 0) balanceEl.style.color = "var(--danger)";
     else if (t <= (750 * factor))  balanceEl.style.color = "var(--warning)";
     else if (t <= (1400 * factor)) balanceEl.style.color = "var(--success)";
     else balanceEl.style.color = "var(--electric-blue)";
   }
 
-  // Footer botones
+  // Footer
   const footerRow = document.querySelector('.footer-row');
   const plus = ensureThreePlusButtons();
   const btnLeft   = plus[0] || null; // IZQ
@@ -552,8 +420,7 @@ function mostrar() {
   [btnLeft, btnCenter, btnRight].forEach(b=>{
     if (!b) return;
     b.onclick = null; b.classList.remove("plus-like","btn-house-anim","active");
-    b.style.opacity = "1";
-    b.style.display = "";
+    b.style.opacity = "1"; b.style.display = "";
   });
   layoutFooterReset(btnLeft, btnCenter, btnRight);
 
@@ -563,32 +430,25 @@ function mostrar() {
                     btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); }; aplicarEstadoCasa(); }
     if (btnRight){  btnRight.style.display = ""; btnRight.style.opacity = "1"; btnRight.style.pointerEvents = "auto";
                     btnRight.innerHTML  = iconGraph2(); btnRight.onclick = () => setModo("graficos2"); }
-
     layoutFooterGrafico1(footerRow, btnLeft, btnCenter, btnRight);
     layoutBalanceFixed(footerRow, balanceEl);
-
   } else if (modo === "graficos2") {
     if (btnLeft){   btnLeft.innerHTML = iconBack();  btnLeft.onclick = () => setModo("graficos"); }
     if (btnCenter){ btnCenter.innerHTML = iconCasa(); btnCenter.classList.add("btn-house-anim");
                     btnCenter.onclick = () => { toggleCasa(); aplicarEstadoCasa(); }; aplicarEstadoCasa(); }
     if (btnRight){  btnRight.innerHTML = ""; btnRight.onclick = null; btnRight.style.display = "none"; btnRight.style.pointerEvents = "none"; }
-
     layoutFooterGrafico2(footerRow, btnLeft, btnCenter, btnRight);
     layoutBalanceFixed(footerRow, balanceEl);
-
-  } else { // LISTA
+  } else {
     if (btnLeft){   btnLeft.innerHTML = iconBars(); btnLeft.classList.add("plus-like"); btnLeft.onclick = () => setModo("graficos"); }
     if (btnCenter){ btnCenter.innerHTML = "+"; btnCenter.onclick = () => abrirFormulario(); }
     if (btnRight){
-      btnRight.innerHTML = "";
-      btnRight.onclick = null;
-      btnRight.style.display = "none";
+      btnRight.innerHTML = ""; btnRight.onclick = null; btnRight.style.display = "none";
       btnRight.style.position = ""; btnRight.style.left = ""; btnRight.style.top = "";
       btnRight.style.transform = ""; btnRight.style.opacity = "0";
     }
     layoutFooterReset(btnLeft, btnCenter, btnRight);
     layoutBalanceReset(balanceEl);
-
     const cont = document.querySelector('.footer-controles');
     if (cont) cont.style.display = fullscreenMode ? 'none' : '';
   }
@@ -610,37 +470,29 @@ function mostrar() {
         <div class="monto" style="color:${m.imp >= 0 ? 'var(--success)' : 'var(--danger)'}">${(Number(m.imp)||0).toFixed(2)} €</div>
       </div>`).join("");
     listaDiv.innerHTML = rows;
-    const loader = document.getElementById("loader");
-    if (loader) loader.style.display = "none";
+    const loader = document.getElementById("loader"); if (loader) loader.style.display = "none";
   }
 
-  ensureBackupIndicator();
-  updateBackupIndicator();
+  ensureBackupIndicator(); updateBackupIndicator();
 }
-
-// Recalcular en resize/orientación (con debounce)
 window.addEventListener('resize', debounce(function(){
   const movDiv = document.getElementById("movimientos");
-  if (!movDiv) return;
-  const modo = movDiv.dataset.modo || "lista";
+  if (!movDiv) return; const modo = movDiv.dataset.modo || "lista";
   if (modo !== "graficos" && modo !== "graficos2") return;
-
   const footerRow = document.querySelector(".footer-row");
   const plus = document.querySelectorAll(".footer-row .plus");
   const btnLeft   = plus[0] || null;
   const btnCenter = plus[1] || null;
   const btnRight  = plus[2] || null;
   const balanceEl = document.getElementById('balance');
-
   if (modo === "graficos") layoutFooterGrafico1(footerRow, btnLeft, btnCenter, btnRight);
   else layoutFooterGrafico2(footerRow, btnLeft, btnCenter, btnRight);
-
   layoutBalanceFixed(footerRow, balanceEl);
 }, 150));
 
-/* ==========================
-   GRÁFICOS 1 (barras) + DRILL
-========================== */
+// ==========================
+//  GRÁFICOS 1 (barras) + DRILL
+// ==========================
 function renderizarBarrasGraficos(f) {
   const lista = document.getElementById("lista");
   const elFC = document.getElementById("filtroCat");
@@ -655,7 +507,6 @@ function renderizarBarrasGraficos(f) {
   } else {
     for (let m of fuente) if (m.imp < 0 && m.c === filtroCat) totales[m.s] = (totales[m.s]||0) + Math.abs(m.imp);
   }
-
   const vals = Object.values(totales);
   const max = Math.max(...vals, 1);
   const titulo = (filtroCat === "TODAS") ? "ANÁLISIS DE GASTO POR CATEGORÍAS" : `SUBCATEGORÍAS DE ${filtroCat}`;
@@ -674,7 +525,6 @@ function renderizarBarrasGraficos(f) {
     lista.innerHTML += html + `<div class="card" style="text-align:center;border:none"><div style="opacity:.8">No hay datos para los filtros seleccionados.</div></div>`;
     return;
   }
-
   lista.innerHTML += html + items.map(([label,val])=>{
     const t1 = Math.min(val, 50*f),
           t2 = val > 50*f ? Math.min(val - 50*f ,150*f) : 0,
@@ -734,14 +584,12 @@ function abrirDetalleMovs(categoria, subcategoria){
     `;
     document.body.appendChild(overlay);
     overlay.querySelector('#cerrarDetalle').onclick = ()=> overlay.remove();
-  } catch (e) {
-    console.error(e); alert("No se pudo abrir el detalle.");
-  }
+  } catch (e) { console.error(e); alert("No se pudo abrir el detalle."); }
 }
 
-/* ==========================
-   GRÁFICOS 2 (columnas)
-========================== */
+// ==========================
+//  GRÁFICOS 2 (columnas)
+// ==========================
 function renderizarGraficos2() {
   const lista = document.getElementById("lista");
   const oldChart = lista.querySelector('.g2-wrap'); if (oldChart) oldChart.remove();
@@ -792,7 +640,7 @@ function renderizarGraficos2() {
   `;
   for (const m of meses){
     const v = sumaMes.get(m.key) || 0;
-    const h = Math.max(minBar, (Math.abs(v)/maxAbs) * 80);
+    const h = Math.max(minBar, (Math.abs(v)/maxAbs) * 80); // altura mitad aprox
     const pos = v >= 0;
     const color = colorPorMes(v);
     const mesIdx = new Date(m.key + "-01T00:00:00").getMonth();
@@ -810,21 +658,14 @@ function renderizarGraficos2() {
   html += `</div></div>`;
   lista.insertAdjacentHTML('beforeend', html);
 
-  requestAnimationFrame(function(){
-    const bars = lista.querySelectorAll('.g2-chart .g2-bar');
-    for (let i=0;i<bars.length;i++){
-      const el = bars[i];
-      const target = parseFloat(el.getAttribute('data-h')) || 0;
-      el.style.height = target + 'px';
-    }
-  });
+  requestAnimationFrame(function(){ const bars = lista.querySelectorAll('.g2-chart .g2-bar');
+    for (let i=0;i<bars.length;i++){ const el = bars[i]; const target = parseFloat(el.getAttribute('data-h')) || 0; el.style.height = target + 'px'; } });
 
   const chart = lista.querySelector('.g2-chart');
   if (!chart) return;
   if (!chart.getAttribute('data-tipBound')){
     chart.addEventListener('click', function(ev){
-      const col = ev.target.closest('.g2-col');
-      if (!col) return;
+      const col = ev.target.closest('.g2-col'); if (!col) return;
       const open = chart.querySelectorAll('.g2-col.show-tip');
       for (let i=0;i<open.length;i++) if (open[i]!==col) open[i].classList.remove('show-tip');
       col.classList.toggle('show-tip');
@@ -839,9 +680,9 @@ function renderizarGraficos2() {
   }
 }
 
-/* ==========================
-   FORMULARIO / CRUD
-========================== */
+// ==========================
+//  FORMULARIO / CRUD
+// ==========================
 const llenar = (id, base, extra, pre = "", opts = {}) => {
   const s = document.getElementById(id);
   const origenActual = opts.origenActual || "";
@@ -933,10 +774,8 @@ const guardar = () => {
 const volver = () => {
   document.getElementById("form").classList.add("hidden");
   document.getElementById("movimientos").classList.remove("hidden");
-  actualizarListas();
-  mostrar();
+  actualizarListas(); mostrar();
 };
-
 const manejarNuevo = (el, tipo) => {
   if (el.value !== "+") return;
   let n = el.dataset.nuevoValor || "";
@@ -968,12 +807,9 @@ const manejarNuevo = (el, tipo) => {
     llenar("subcategoria", subMaestra, [], pretty, { origenActual });
   }
 };
-
 const borrarElemento = (tipo) => {
   const select = document.getElementById(tipo);
-  const val = select && select.value;
-  if (!val) return;
-
+  const val = select && select.value; if (!val) return;
   if (tipo === 'categoria') {
     const idx = catExtra.indexOf(val);
     if (idx >= 0) {
@@ -981,9 +817,7 @@ const borrarElemento = (tipo) => {
       localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
       const origenActual = (document.getElementById("origen")||{}).value || "";
       llenar('categoria', catBase, catExtra, "", { origenActual });
-    } else {
-      alert('Solo puedes borrar categorías añadidas por ti.');
-    }
+    } else { alert('Solo puedes borrar categorías añadidas por ti.'); }
   } else if (tipo === 'subcategoria') {
     const idx = subMaestra.indexOf(val);
     if (idx >= 0) {
@@ -994,14 +828,12 @@ const borrarElemento = (tipo) => {
     }
   }
 };
-
 const abrirGraficos = () => {
   const m = document.getElementById("movimientos");
   m.dataset.modo = (m.dataset.modo === "graficos") ? "lista" : "graficos";
   mostrar();
 };
 const resetPagina = () => { registrosVisibles = 25; window.scrollTo(0,0); };
-
 const actualizarListas = () => {
   const fC = document.getElementById("filtroCat"),
         fS = document.getElementById("filtroSub"),
@@ -1021,9 +853,9 @@ const actualizarListas = () => {
   }
 };
 
-/* ==========================
-   NORMALIZACIÓN RETROACTIVA
-========================== */
+// ==========================
+//  NORMALIZACIÓN RETROACTIVA
+// ==========================
 function normalizarListasExistentes(){
   const vistosCat = new Set(Object.values(catBase).map(v => canonicalizeLabel(v)));
   const nuevaExtra = [];
@@ -1035,8 +867,7 @@ function normalizarListasExistentes(){
     if (!nuevaExtra.some(x => canonicalizeLabel(x)===k)) nuevaExtra.push(v);
     vistosCat.add(k);
   }
-  catExtra = nuevaExtra;
-  localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+  catExtra = nuevaExtra; localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
 
   const vistosSub = new Set();
   const nuevasSubs = [];
@@ -1044,8 +875,7 @@ function normalizarListasExistentes(){
     const k = canonicalizeLabel(v);
     if (!vistosSub.has(k)) { vistosSub.add(k); nuevasSubs.push(v); }
   }
-  subMaestra = nuevasSubs;
-  localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+  subMaestra = nuevasSubs; localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
 
   const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
   const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
@@ -1065,14 +895,13 @@ function normalizarListasExistentes(){
   if (cambiado) localStorage.setItem('movimientos', JSON.stringify(movimientos));
 }
 
-/* ==========================
-   INIT + SCROLL
-========================== */
+// ==========================
+//  INIT + SCROLL
+// ==========================
 const init = () => {
   const fM = document.getElementById("filtroMes"),
         fA = document.getElementById("filtroAño"),
         hoy = new Date();
-
   if (fM){
     fM.innerHTML = '<option value="TODOS">Mes: TODOS</option>';
     for (let i=0;i<mesesLabel.length;i++) fM.add(new Option(mesesLabel[i], i));
@@ -1083,29 +912,23 @@ const init = () => {
     for (let a = 2020; a <= 2030; a++) fA.add(new Option(a, a));
     fA.value = hoy.getFullYear();
   }
-
   normalizarListasExistentes();
-  actualizarListas();
-  mostrar();
+  actualizarListas(); mostrar();
 };
-
-// Scroll infinito (con candado + passive)
 let _renderLock = false;
 window.addEventListener('scroll', () => {
   const movDiv = document.getElementById("movimientos");
   if (!movDiv || movDiv.dataset.modo === "graficos") return;
   if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200 && registrosVisibles < filtradosGlobal.length) {
     if (_renderLock) return;
-    _renderLock = true;
-    const loader = document.getElementById("loader");
-    if (loader) loader.style.display = "block";
+    _renderLock = true; const loader = document.getElementById("loader"); if (loader) loader.style.display = "block";
     setTimeout(function(){ registrosVisibles += 25; mostrar(); _renderLock = false; }, 200);
   }
 }, { passive: true });
 
-/* ==========================
-   CSV: EXPORTACIÓN / IMPORTACIÓN
-========================== */
+// ==========================
+//  CSV: EXPORTACIÓN / IMPORTACIÓN
+// ==========================
 const exportarCSV = () => {
   if (!movimientos || movimientos.length === 0) { alert("No hay datos para exportar."); return; }
   const SEP = ";";
@@ -1120,7 +943,6 @@ const exportarCSV = () => {
   const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=fileName;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 };
-
 const importarCSV = (e) => {
   const file = e.target.files && e.target.files[0]; if (!file) return;
   const reader = new FileReader();
@@ -1220,18 +1042,16 @@ const importarCSV = (e) => {
       actualizarListas(); resetPagina(); mostrar();
 
       alert(`Importación completa: ${nuevos.length} registros añadidos.`);
-    } catch (err) {
-      console.error(err); alert("Error al importar el CSV. Revisa el formato.");
-    } finally { e.target.value = ""; }
+    } catch (err) { console.error(err); alert("Error al importar el CSV. Revisa el formato."); }
+    finally { e.target.value = ""; }
   };
   reader.onerror = () => alert("No se pudo leer el archivo.");
   reader.readAsText(file, 'UTF-8');
 };
 
-/* ==========================
-   BACKUPS (rotativo local + GUARDAR/REST. LOCAL)
-========================== */
-// Rotativo local (para auto-backup ocasional)
+// ==========================
+//  BACKUPS (rotativo local + indicador)
+// ==========================
 async function createAndStoreLocalBackup(){
   const enc = await encryptBackup(buildBackupObject());
   const idx = ((parseInt(localStorage.getItem('backup_idx')||'0',10)) % 5) + 1;
@@ -1245,63 +1065,16 @@ async function downloadEncryptedBackup(enc, filename='mis_gastos_backup.json'){
   const blob=new Blob([JSON.stringify(enc,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
-
-// ⚠️ Mantiene el nombre "Guardar en OneDrive", pero guarda SIEMPRE en local (Descargas)
-async function guardarCopiaEnOneDrive(){
-  try{
-    const enc = await encryptBackup(buildBackupObject());
-    await downloadEncryptedBackup(enc, 'mis_gastos_backup.json');
-    localStorage.setItem('backup_last_ts', String(Date.now()));
-    updateBackupIndicator();
-    alert("✅ Copia guardada en local como mis_gastos_backup.json (puedes subirla a OneDrive manualmente).");
-  }catch(e){
-    console.error(e);
-    alert("No se pudo crear la copia local.");
-  }
-}
-
-// "Restaurar desde OneDrive" → restaurar desde archivo local (selector)
-async function restaurarCopiaDeOneDrive(){
-  try{
-    const file = await new Promise((resolve, reject)=>{
-      const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json';
-      inp.onchange=()=> resolve(inp.files[0]);
-      inp.click();
-      setTimeout(()=>{ if(!inp.files || !inp.files[0]) reject(new Error("No file")); }, 20000);
-    });
-    if (!file) return;
-
-    const text = await file.text();
-    const payload = JSON.parse(text);
-    const data = (payload && payload.ct && payload.iv) ? await decryptBackup(payload) : payload;
-    if (!data || !data.datos) throw new Error("Formato de copia inválido");
-
-    movimientos = Array.isArray(data.datos.movimientos) ? data.datos.movimientos : [];
-    catExtra    = Array.isArray(data.datos.catExtra)    ? data.datos.catExtra    : [];
-    subMaestra  = Array.isArray(data.datos.subMaestra)  ? data.datos.subMaestra  : [];
-    localStorage.setItem('movimientos', JSON.stringify(movimientos));
-    localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-    localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-    localStorage.setItem('backup_last_ts', String(Date.now()));
-    updateBackupIndicator();
-
-    actualizarListas(); resetPagina(); mostrar();
-    alert("✅ Copia restaurada correctamente desde archivo local.");
-  }catch(e){
-    if (e && e.name === "AbortError") return;
-    console.error(e); alert("No se pudo restaurar la copia (archivo inválido o cancelado).");
-  }
-}
-
+const ejecutarBackupRotativo = async () => {
+  try{ const enc=await createAndStoreLocalBackup(); await downloadEncryptedBackup(enc,'mis_gastos_backup.json'); }
+  catch(e){ console.error("Backup automático falló:", e); }
+};
 function ensureBackupIndicator(){
   const top=document.querySelector('.topbar'); if (!top) return;
   if (!document.getElementById('backupIndicator')){
-    const span=document.createElement('span');
-    span.id='backupIndicator';
-    span.className='backup-indicator';
+    const span=document.createElement('span'); span.id='backupIndicator'; span.className='backup-indicator';
     span.innerHTML=`<span class="dot"></span><span class="txt">Última copia: —</span>`;
     top.appendChild(span);
   }
@@ -1327,18 +1100,140 @@ function updateBackupIndicator(){
 }
 setInterval(updateBackupIndicator, 60000);
 
-/* ==========================
-   SERVICE WORKER (PWA)
-========================== */
+// ==========================
+//  SERVICE WORKER (PWA)
+// ==========================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){
     navigator.serviceWorker.register('./sw.js').catch(function(err){ console.error("SW ERROR:", err); });
   });
 }
 
-/* ==========================
-   EXPORTAR GLOBAL
-========================== */
+// ==========================
+//  DROPBOX — PKCE + API v2
+//  (con login automático bajo demanda)
+// ==========================
+const DBX_APP_KEY = 'pow1k3kk53abk75';
+const DBX_REDIRECT_URI = 'https://oskarlm.github.io/APK_V0.0/auth/dropbox/callback';
+const DBX_FILE_PATH = '/mis_gastos_backup.json'; // App folder
+const DBX_OAUTH_AUTHORIZE = 'https://www.dropbox.com/oauth2/authorize';
+const DBX_OAUTH_TOKEN      = 'https://api.dropboxapi.com/oauth2/token';
+const DBX_CONTENT          = 'https://content.dropboxapi.com/2';
+
+function dbx_b64Url(bytes) {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function dbx_sha256Base64Url(text) {
+  const data = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return dbx_b64Url(new Uint8Array(hash));
+}
+function dbx_randomString(len=64) {
+  const arr = new Uint8Array(len); crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => ('0'+b.toString(16)).slice(-2)).join('');
+}
+function dbx_getTokens(){ try {return JSON.parse(localStorage.getItem('dbx_tokens')||'{}');} catch { return null; } }
+function dbx_setTokens(t){ localStorage.setItem('dbx_tokens', JSON.stringify(t||{})); }
+function dbx_clearTokens(){ localStorage.removeItem('dbx_tokens'); }
+
+async function dropboxStartLogin(){
+  const code_verifier  = dbx_randomString(64);
+  const code_challenge = await dbx_sha256Base64Url(code_verifier);
+  sessionStorage.setItem('dbx_code_verifier', code_verifier);
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: DBX_APP_KEY,
+    redirect_uri: DBX_REDIRECT_URI,
+    code_challenge: code_challenge,
+    code_challenge_method: 'S256',
+    token_access_type: 'offline'
+    // scope: 'files.content.write files.content.read files.metadata.read'
+  });
+  window.location.href = `${DBX_OAUTH_AUTHORIZE}?${params.toString()}`;
+}
+async function dbx_getValidAccessToken(){
+  let t = dbx_getTokens(); if (!t) return null;
+  if (t.access_token && t.expires_at && Date.now() < t.expires_at) return t.access_token;
+  if (t.refresh_token) {
+    const body = new URLSearchParams({ grant_type:'refresh_token', client_id:DBX_APP_KEY, refresh_token:t.refresh_token });
+    const r = await fetch(DBX_OAUTH_TOKEN, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
+    if (!r.ok) { dbx_clearTokens(); return null; }
+    const j = await r.json();
+    const expires_at = Date.now() + (j.expires_in ? j.expires_in*1000 : 3600*1000);
+    const saved = { ...t, access_token:j.access_token, expires_in:j.expires_in, expires_at };
+    dbx_setTokens(saved);
+    return saved.access_token;
+  }
+  return t.access_token || null;
+}
+
+// === AJUSTE: login automático bajo demanda ===
+async function dropboxUploadEncryptedBackup(){
+  try{
+    let token = await dbx_getValidAccessToken();
+    if (!token) { // no hay sesión → lanzar login y salir
+      await dropboxStartLogin();
+      return;
+    }
+    const enc = await encryptBackup(buildBackupObject());
+    const payload = JSON.stringify(enc, null, 2);
+
+    const res = await fetch(`${DBX_CONTENT}/files/upload`, {
+      method:'POST',
+      headers:{
+        'Authorization': `Bearer ${token}`,
+        'Dropbox-API-Arg': JSON.stringify({ path: DBX_FILE_PATH, mode:{'.tag':'overwrite'}, mute:true }),
+        'Content-Type':'application/octet-stream'
+      },
+      body: new TextEncoder().encode(payload)
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    localStorage.setItem('backup_last_ts', String(Date.now()));
+    updateBackupIndicator?.();
+    alert('✅ Copia subida a Dropbox.');
+  }catch(e){ console.error(e); alert('No se pudo subir a Dropbox.'); }
+}
+async function dropboxDownloadAndRestore(){
+  try{
+    let token = await dbx_getValidAccessToken();
+    if (!token) { // no hay sesión → lanzar login y salir
+      await dropboxStartLogin();
+      return;
+    }
+    const res = await fetch(`${DBX_CONTENT}/files/download`, {
+      method:'POST',
+      headers:{
+        'Authorization': `Bearer ${token}`,
+        'Dropbox-API-Arg': JSON.stringify({ path: DBX_FILE_PATH })
+      }
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const text = await res.text();
+    let payload; try { payload = JSON.parse(text); } catch { throw new Error('El archivo no es JSON.'); }
+
+    const data = (payload && payload.ct && payload.iv) ? await decryptBackup(payload) : payload;
+    if (!data || !data.datos) throw new Error('Formato de copia inválido');
+
+    movimientos = Array.isArray(data.datos.movimientos) ? data.datos.movimientos : [];
+    catExtra    = Array.isArray(data.datos.catExtra)    ? data.datos.catExtra    : [];
+    subMaestra  = Array.isArray(data.datos.subMaestra)  ? data.datos.subMaestra  : [];
+    localStorage.setItem('movimientos', JSON.stringify(movimientos));
+    localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+    localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+    localStorage.setItem('backup_last_ts', String(Date.now()));
+    updateBackupIndicator?.();
+
+    actualizarListas?.(); resetPagina?.(); mostrar?.();
+    alert('✅ Copia restaurada desde Dropbox.');
+  }catch(e){ console.error(e); alert('No se pudo descargar/restaurar desde Dropbox.'); }
+}
+function dropboxSignOut(){ dbx_clearTokens(); alert('Dropbox desconectado en este dispositivo.'); }
+
+// ==========================
+//  EXPORTAR A GLOBAL
+// ==========================
 function resetTotal(){ /* sin operación (compat) */ }
 
 // PIN
@@ -1369,166 +1264,11 @@ window.toggleCasa = toggleCasa;
 window.handleGraficoBarClick = handleGraficoBarClick;
 window.abrirDetalleMovs = abrirDetalleMovs;
 
-// Backups (mantienen nombre pero son locales)
-window.guardarCopiaEnOneDrive = guardarCopiaEnOneDrive;
-window.restaurarCopiaDeOneDrive = restaurarCopiaDeOneDrive;
-/**** ==========================
-      DROPBOX (PKCE + API v2) PARA APK_V0.0
-========================== ****/
-
-// Config
-const DBX_APP_KEY = 'pow1k3kk53abk75';
-const DBX_REDIRECT_URI = 'https://oskarlm.github.io/APK_V0.0/auth/dropbox/callback';
-const DBX_FILE_PATH = '/mis_gastos_backup.json'; // en App folder o Full, según creaste la app
-const DBX_OAUTH_AUTHORIZE = 'https://www.dropbox.com/oauth2/authorize';
-const DBX_OAUTH_TOKEN      = 'https://api.dropboxapi.com/oauth2/token';
-const DBX_CONTENT          = 'https://content.dropboxapi.com/2';
-
-// Helpers PKCE
-function dbx_b64Url(bytes) {
-  return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-}
-async function dbx_sha256Base64Url(text) {
-  const data = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return dbx_b64Url(new Uint8Array(hash));
-}
-function dbx_randomString(len=64) {
-  const arr = new Uint8Array(len);
-  crypto.getRandomValues(arr);
-  return Array.from(arr).map(b => ('0'+b.toString(16)).slice(-2)).join('');
-}
-
-// Token storage
-function dbx_getTokens(){ try {return JSON.parse(localStorage.getItem('dbx_tokens')||'{}');} catch { return null; } }
-function dbx_setTokens(t){ localStorage.setItem('dbx_tokens', JSON.stringify(t||{})); }
-function dbx_clearTokens(){ localStorage.removeItem('dbx_tokens'); }
-
-// Iniciar login
-async function dropboxStartLogin(){
-  const code_verifier  = dbx_randomString(64);
-  const code_challenge = await dbx_sha256Base64Url(code_verifier);
-  sessionStorage.setItem('dbx_code_verifier', code_verifier);
-
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: DBX_APP_KEY,
-    redirect_uri: DBX_REDIRECT_URI,
-    code_challenge: code_challenge,
-    code_challenge_method: 'S256',
-    token_access_type: 'offline' // refresh_token
-    // scope: 'files.content.write files.content.read files.metadata.read' // si activaste scopes finos
-  });
-  window.location.href = `${DBX_OAUTH_AUTHORIZE}?${params.toString()}`;
-}
-
-// Refresh si caduca
-async function dbx_getValidAccessToken(){
-  let t = dbx_getTokens();
-  if (!t) return null;
-  if (t.access_token && t.expires_at && Date.now() < t.expires_at) return t.access_token;
-
-  if (t.refresh_token) {
-    const body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      client_id: DBX_APP_KEY,
-      refresh_token: t.refresh_token
-    });
-    const r = await fetch(DBX_OAUTH_TOKEN, {
-      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body
-    });
-    if (!r.ok) { dbx_clearTokens(); return null; }
-    const j = await r.json();
-    const expires_at = Date.now() + (j.expires_in ? j.expires_in*1000 : 3600*1000);
-    const saved = { ...t, access_token: j.access_token, expires_in: j.expires_in, expires_at };
-    dbx_setTokens(saved);
-    return saved.access_token;
-  }
-  return t.access_token || null;
-}
-
-// Subir (sobrescribir) el backup CIFRADO
-async function dropboxUploadEncryptedBackup(){
-  try{
-    const token = await dbx_getValidAccessToken();
-    if (!token) { alert('Conecta Dropbox primero.'); return; }
-
-    // Usa TU cifrado existente (ya lo tienes en main.js):
-    const enc = await encryptBackup(buildBackupObject()); // {v, alg, iv, ct}
-    const payload = JSON.stringify(enc, null, 2);
-
-    const res = await fetch(`${DBX_CONTENT}/files/upload`, {
-      method:'POST',
-      headers:{
-        'Authorization': `Bearer ${token}`,
-        'Dropbox-API-Arg': JSON.stringify({
-          path: DBX_FILE_PATH,
-          mode: { '.tag':'overwrite' }, // SIEMPRE sobreescribe
-          mute: true
-        }),
-        'Content-Type':'application/octet-stream'
-      },
-      body: new TextEncoder().encode(payload)
-    });
-    if (!res.ok) throw new Error(await res.text());
-
-    localStorage.setItem('backup_last_ts', String(Date.now()));
-    updateBackupIndicator?.();
-    alert('✅ Copia subida a Dropbox.');
-  }catch(e){
-    console.error(e);
-    alert('No se pudo subir a Dropbox.');
-  }
-}
-
-// Descargar y restaurar
-async function dropboxDownloadAndRestore(){
-  try{
-    const token = await dbx_getValidAccessToken();
-    if (!token) { alert('Conecta Dropbox primero.'); return; }
-
-    const res = await fetch(`${DBX_CONTENT}/files/download`, {
-      method:'POST',
-      headers:{
-        'Authorization': `Bearer ${token}`,
-        'Dropbox-API-Arg': JSON.stringify({ path: DBX_FILE_PATH })
-      }
-    });
-    if (!res.ok) throw new Error(await res.text());
-
-    const text = await res.text();
-    let payload;
-    try { payload = JSON.parse(text); } catch { throw new Error('El archivo no es JSON.'); }
-
-    const data = (payload && payload.ct && payload.iv) ? await decryptBackup(payload) : payload;
-    if (!data || !data.datos) throw new Error('Formato de copia inválido');
-
-    movimientos = Array.isArray(data.datos.movimientos) ? data.datos.movimientos : [];
-    catExtra    = Array.isArray(data.datos.catExtra)    ? data.datos.catExtra    : [];
-    subMaestra  = Array.isArray(data.datos.subMaestra)  ? data.datos.subMaestra  : [];
-    localStorage.setItem('movimientos', JSON.stringify(movimientos));
-    localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-    localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-    localStorage.setItem('backup_last_ts', String(Date.now()));
-    updateBackupIndicator?.();
-
-    actualizarListas?.(); resetPagina?.(); mostrar?.();
-    alert('✅ Copia restaurada desde Dropbox.');
-  }catch(e){
-    console.error(e);
-    alert('No se pudo descargar/restaurar desde Dropbox.');
-  }
-}
-
-// Desconectar Dropbox (opcional)
-function dropboxSignOut(){
-  dbx_clearTokens();
-  alert('Dropbox desconectado en este dispositivo.');
-}
-
-// Exponer a window para botones
+// Dropbox (login bajo demanda)
 window.dropboxStartLogin = dropboxStartLogin;
 window.dropboxUploadEncryptedBackup = dropboxUploadEncryptedBackup;
 window.dropboxDownloadAndRestore = dropboxDownloadAndRestore;
 window.dropboxSignOut = dropboxSignOut;
+
+// Utilidades backup
+window.createAndStoreLocalBackup = createAndStoreLocalBackup;
