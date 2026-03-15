@@ -1144,16 +1144,15 @@ async function dropboxStartLogin(){
   const code_challenge = await dbx_sha256Base64Url(code_verifier);
   sessionStorage.setItem('dbx_code_verifier', code_verifier);
 
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: DBX_APP_KEY,
-    redirect_uri: DBX_REDIRECT_URI,
-    code_challenge: code_challenge,
-    code_challenge_method: 'S256',
-    token_access_type: 'offline',
-    // 👇 Scopes imprescindibles para subir/bajar archivos
-    scope: 'files.content.write files.content.read files.metadata.read'
-  });
+const params = new URLSearchParams({
+  response_type: 'code',
+  client_id: DBX_APP_KEY,
+  redirect_uri: DBX_REDIRECT_URI,
+  code_challenge: code_challenge,
+  code_challenge_method: 'S256',
+  token_access_type: 'offline',
+  scope: 'files.content.write files.content.read files.metadata.read'
+});
 
   window.location.href = `${DBX_OAUTH_AUTHORIZE}?${params.toString()}`;
 }
