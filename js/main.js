@@ -243,7 +243,6 @@ function captureFooterAnchors(){
 /* ==========================
    LAYOUT FOOTER (AUTOCURACIÓN)
 ========================== */
-// Garantiza 3 .plus dentro de .footer-row (crea “fantasma(s)” si faltan)
 function ensureThreePlusButtons() {
   const fr = document.querySelector('.footer-row');
   if (!fr) return [];
@@ -258,7 +257,6 @@ function ensureThreePlusButtons() {
     b.style.cssText = 'opacity:0;pointer-events:none;position:absolute;left:-9999px;';
     fr.appendChild(b);
   }
-  // devolver Array nativo para trabajo homogéneo
   return Array.from(fr.querySelectorAll('.plus'));
 }
 function layoutFooterReset(btnLeft, btnCenter, btnRight){
@@ -273,32 +271,43 @@ function layoutFooterReset(btnLeft, btnCenter, btnRight){
 }
 
 /* ==========================
-   CENTRADO REAL (post‑layout)
+   CENTRADO REAL (post‑layout, con medición exacta)
 ========================== */
-function _recentrarCasa(container, btnLeft, btnCenter, btnRight, size = 65) {
+// Centra CASA exactamente entre los centros de VOLVER (izq) y G2 (der).
+// Mide anchos reales y espera a que el layout esté aplicado (rAF).
+function _recentrarCasa(container, btnLeft, btnCenter, btnRight) {
   if (!container || !btnLeft || !btnCenter) return;
 
-  const fr = container.getBoundingClientRect();
-  const l  = btnLeft.getBoundingClientRect();
+  requestAnimationFrame(() => {
+    const fr = container.getBoundingClientRect();
+    const l  = btnLeft.getBoundingClientRect();
+    const c  = btnCenter.getBoundingClientRect();
 
-  // Si hay botón derecho visible, úsalo; si no, usamos anclaje estimado del "centerX"
-  const rightIsVisible = !!(btnRight && btnRight.style.display !== 'none' && btnRight.style.pointerEvents !== 'none' && btnRight.style.opacity !== '0');
-  let rLeft;
-  if (rightIsVisible) {
-    const r = btnRight.getBoundingClientRect();
-    rLeft = r.left - fr.left;
-  } else {
-    // estimación del futuro botón derecho basada en los anclajes capturados o centro del contenedor
-    const fallback = (container.clientWidth / 2) - (size / 2);
-    rLeft = (footerAnchors.centerX != null) ? footerAnchors.centerX : fallback;
-  }
+    // Si el derecho está visible, úsalo; si no, calcula un "ancla" derecha
+    let rightRect = null;
+    const visible = !!(btnRight &&
+                       btnRight.style.display !== 'none' &&
+                       btnRight.style.pointerEvents !== 'none' &&
+                       btnRight.style.opacity !== '0');
+    if (visible) {
+      rightRect = btnRight.getBoundingClientRect();
+    } else {
+      // Anclaje estimado donde caería el botón derecho
+      const estLeft = (typeof footerAnchors.centerX === 'number')
+        ? footerAnchors.centerX
+        : (container.clientWidth / 2) - (c.width / 2);
+      rightRect = { left: fr.left + estLeft, width: c.width };
+    }
 
-  const leftCenter  = (l.left - fr.left) + size / 2;
-  const rightCenter = rLeft + size / 2;
-  const casaCenter  = (leftCenter + rightCenter) / 2;
-  const casaLeft    = Math.round(casaCenter - size / 2);
+    // Centros reales respecto al contenedor
+    const centerLeft   = (l.left - fr.left) + (l.width  / 2);
+    const centerRight  = (rightRect.left - fr.left) + (rightRect.width / 2);
+    const centerCasa   = (centerLeft + centerRight) / 2;
 
-  btnCenter.style.left = `${casaLeft}px`;
+    // Left final para que el centro de CASA coincida con el punto medio
+    const casaLeft = Math.round(centerCasa - (c.width / 2));
+    btnCenter.style.left = `${casaLeft}px`;
+  });
 }
 
 /* ==========================
@@ -307,11 +316,9 @@ function _recentrarCasa(container, btnLeft, btnCenter, btnRight, size = 65) {
 function layoutFooterGrafico1(container, btnLeft, btnCenter, btnRight){
   if (!container || !btnLeft || !btnCenter || !btnRight) return;
 
-  // Asegura posicionamiento relativo
   const cs = getComputedStyle(container);
   if (cs.position === 'static') container.style.position = 'relative';
 
-  // Si tenemos anclajes medidos en Movimientos, los usamos
   const SIZE  = footerAnchors.size || 65;
   const xLeft = (footerAnchors.leftX   != null) ? footerAnchors.leftX   : 20;
   const xG2   = (footerAnchors.centerX != null) ? footerAnchors.centerX : ((container.clientWidth/2) - (SIZE/2));
@@ -322,15 +329,15 @@ function layoutFooterGrafico1(container, btnLeft, btnCenter, btnRight){
     b.style.transform = 'translateY(-50%)';
   });
 
-  // Posicionamiento inicial
+  // Posicionamiento inicial (izq y der); CASA se corrige después con medición real
   btnLeft.style.left   = `${xLeft}px`;
   btnRight.style.left  = `${xG2}px`;
   btnRight.style.display      = '';
   btnRight.style.opacity      = '1';
   btnRight.style.pointerEvents= 'auto';
 
-  // Ajuste final de centrado real del botón CASA
-  _recentrarCasa(container, btnLeft, btnCenter, btnRight, SIZE);
+  // Centrado exacto de CASA
+  _recentrarCasa(container, btnLeft, btnCenter, btnRight);
 }
 
 function layoutFooterGrafico2(container, btnLeft, btnCenter, btnRight){
@@ -349,22 +356,21 @@ function layoutFooterGrafico2(container, btnLeft, btnCenter, btnRight){
     b.style.transform = 'translateY(-50%)';
   });
 
-  // Coloca el izquierdo (visible)
+  // Coloca el izquierdo visible
   btnLeft.style.left   = `${xLeft}px`;
 
-  // Oculta el derecho en G2
+  // Oculta el derecho en G2 (pero _recentrarCasa usará su anclaje virtual)
   btnRight.style.opacity      = '0';
   btnRight.style.left         = `-9999px`;
   btnRight.style.pointerEvents= 'none';
 
-  // Centrar el botón CASA frente al anclaje del derecho (virtual)
-  _recentrarCasa(container, btnLeft, btnCenter, btnRight, SIZE);
+  // Centrado exacto de CASA frente al anclaje derecho virtual
+  _recentrarCasa(container, btnLeft, btnCenter, btnRight);
 }
 
 /* ==========================
    LAYOUT BALANCE (alineado con RESET)
 ========================== */
-// Calcula offset a la derecha para que el #balance coincida con la derecha de RESET
 function getBalanceRightOffset(container){
   try{
     const resetBtn = Array.from(document.querySelectorAll('.footer-controles .btn-small'))
@@ -586,7 +592,7 @@ function renderizarBarrasGraficos(f) {
           <div style="width:${(t1/val)*100}%;background:var(--electric-blue)"></div>
           <div style="width:${(t2/val)*100}%;background:var(--success)"></div>
           <div style="width:${(t3/val)*100}%;background:var(--warning)"></div>
-          <div style="width:${(t4/val)*100}%;background:var(--danger)"></div>
+          <div style="width:${(t4/val)*100)%;background:var(--danger)"></div>
         </div>
       </div>
     `;
@@ -693,13 +699,12 @@ function renderizarGraficos2() {
     const color = colorPorMes(v);
     const mesIdx = new Date(m.key + "-01T00:00:00").getMonth();
     const label  = mesesCorta[mesIdx];
-    const tipClass = pos ? 'tip-pos' : 'tip-neg';
     const tipText  = `${label} ${m.d.getFullYear()}: ${fmtEuro(v)}`;
 
     html += `
       <div class="g2-col" data-key="${m.key}" style="position:relative;height:100%;">
         <div class="g2-bar ${pos ? 'pos' : 'neg'}" data-h="${h}" style="height:0px;background:${color};"></div>
-        <div class="g2-tip ${tipClass}">${tipText}</div>
+        <div class="g2-tip ${pos ? 'tip-pos' : 'tip-neg'}">${tipText}</div>
         <div class="g2-label" style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--primary)">${label}</div>
       </div>
     `;
