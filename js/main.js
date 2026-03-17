@@ -341,7 +341,7 @@ if (window.__APP_LOADED__) {
   function layoutBalanceFixed(container, balanceEl){
     if (!container || !balanceEl) return;
     const cs = getComputedStyle(container); if (cs.position === 'static') container.style.position = 'relative';
-    // El balance ya tiene estilo propio; no forzamos reposición en lista
+    // El balance ya tiene estilo propio
   }
 
   // ==========================
@@ -357,35 +357,46 @@ if (window.__APP_LOADED__) {
     // Limpieza básica
     if (impPage) impPage.classList.add('hidden');
 
-    // Modo IMPORT/EXPORT
+    // === NUEVO MODO IMPORT/EXPORT ===
     if (modo === "importexport") {
       if (filtros) filtros.style.display = 'none';
       if (footerB) footerB.style.display  = '';
-      // Mostrar overlay Import/Export
+
       if (impPage) impPage.classList.remove('hidden');
 
-      // Footer: botón izquierdo = VOLVER (flecha), igual que en gráficos
       const footerRow = document.querySelector('.footer-row');
       const plus = ensureThreePlusButtons();
       const btnLeft = plus[0] || null;
       const btnCenter = plus[1] || null;
       const btnRight = plus[2] || null;
 
-      [btnLeft, btnCenter, btnRight].forEach(b=>{ if (!b) return; b.onclick = null; b.classList.remove("plus-like","btn-house-anim","active"); b.style.opacity = "1"; b.style.display = ""; });
+      [btnLeft, btnCenter, btnRight].forEach(b=>{
+        if (!b) return;
+        b.onclick = null;
+        b.classList.remove("plus-like","btn-house-anim","active");
+        b.style.opacity = "1";
+        b.style.display = "";
+      });
       layoutFooterReset(btnLeft, btnCenter, btnRight);
 
-      if (btnLeft){ btnLeft.innerHTML = iconBack(); btnLeft.onclick = () => setModo("lista"); }
-      // Centro: dejamos “+” por si quieres crear registro rápido (comportamiento de lista).
-      if (btnCenter){ btnCenter.innerHTML = "+"; btnCenter.onclick = () => abrirFormulario(); }
+      // ⬅️ Botón VOLVER (flecha) en el botón izquierdo del footer
+      if (btnLeft){
+        btnLeft.innerHTML = iconBack();
+        btnLeft.onclick = () => setModo("lista");
+      }
 
-      // Derecho (balance) no se toca — lo gestiona HTML
+      // Centro = botón "+"
+      if (btnCenter){
+        btnCenter.innerHTML = "+";
+        btnCenter.onclick = () => abrirFormulario();
+      }
 
-      // No hay lista que renderizar en esta vista
+      // No hay lista que renderizar
       if (listaDiv) listaDiv.innerHTML = "";
       return;
     }
 
-    // Modos lista / gráficos / gráficos2 (vista tradicional)
+    // Modos tradicionales (lista, graficos, graficos2)
     if (filtros) filtros.style.display = fullscreenMode ? 'none' : '';
     if (footerB) footerB.style.display  = fullscreenMode ? 'none' : '';
 
@@ -528,9 +539,7 @@ if (window.__APP_LOADED__) {
       return `
       <div class="card" style="border:none;background:transparent;cursor:pointer" data-label="${esc(label)}"
            onclick="handleGraficoBarClick(this.dataset.label)">
-        <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
-          <span>${esc(label)}</span><b>${val.toFixed(2)} €</b>
-        </div>
+        <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px"><span>${esc(label)}</span><b>${val.toFixed(2)} €</b></div>
         <div class="bar-flex">
           <div class="bar-segment" style="width:${(t1/val)*100}%;background:var(--electric-blue)"></div>
           <div class="bar-segment" style="width:${(t2/val)*100}%;background:var(--success)"></div>
@@ -1065,7 +1074,7 @@ if (window.__APP_LOADED__) {
   }, { passive: true });
 
   // ==========================
-  // CSV / BACKUPS / SW / DROPBOX (tal como tenías)
+  // CSV / BACKUPS / SW / DROPBOX
   // ==========================
   const exportarCSV = () => {
     if (!movimientos || movimientos.length === 0) { alert("No hay datos para exportar."); return; }
@@ -1275,7 +1284,7 @@ if (window.__APP_LOADED__) {
   }
 
   // ==========================
-  // DROPBOX — PKCE + API v2 (igual que tenías)
+  // DROPBOX — PKCE + API v2
   // ==========================
   const DBX_APP_KEY      = 'pow1k3kk53abk75';
   const DBX_REDIRECT_URI = 'https://oskarlm.github.io/APK_V0.0/auth/dropbox/callback';
@@ -1493,7 +1502,6 @@ if (window.__APP_LOADED__) {
   function resetTotal(){ /* noop (si más adelante decides que borre todo, aquí se implementa) */ }
   window.pressPin = pressPin; window.clearPin = clearPin; window.biometricAuth = biometricAuth;
   window.resetPagina = resetPagina; window.mostrar = mostrar; window.abrirFormulario = abrirFormulario; window.volver = volver; window.eliminarRegistroActual = eliminarRegistroActual; window.exportarCSV = exportarCSV; window.importarCSV = importarCSV; window.manejarNuevo = manejarNuevo; window.borrarElemento = borrarElemento; window.abrirGraficos = abrirGraficos; window.ejecutarBackupRotativo = ejecutarBackupRotativo; window.init = init; window.actualizarListas = actualizarListas;
-  window.setModo = setModo; window.toggleCasa = () => { hideCasa = !hideCasa; mostrar(); };
 
   function setModo(modo){
     const m = document.getElementById("movimientos");
@@ -1501,6 +1509,8 @@ if (window.__APP_LOADED__) {
     resetPagina();
     mostrar();
   }
+  window.setModo = setModo;
+  window.toggleCasa = () => { hideCasa = !hideCasa; mostrar(); };
 
   window.handleGraficoBarClick = handleGraficoBarClick; window.abrirDetalleMovs = abrirDetalleMovs;
   window.dropboxStartLogin = dropboxStartLogin; window.dropboxUploadEncryptedBackup = dropboxUploadEncryptedBackup; window.dropboxDownloadAndRestore = dropboxDownloadAndRestore; window.dropboxSignOut = dropboxSignOut;
