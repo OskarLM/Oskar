@@ -154,5 +154,5 @@ input,select,textarea{width:100%;padding:12px;margin:8px 0;font-size:13px;border
   font-size: 18px !important;
 }
 .monto {
-    font-size: calc(1rem + 4px) !important;
+    font-size: calc(1rem + 6px) !important;
 }
