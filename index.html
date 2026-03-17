@@ -161,23 +161,20 @@
   <div class="topbar">IMPORT / EXPORT</div>
 
   <div class="container" style="padding-top:25px;padding-bottom:110px;">
-    <!-- Acciones Import/Export (5 botones iguales) -->
     <div class="ie-actions">
-      <!-- Fila 1 -->
       <button class="btn-gold btn-unified" onclick="exportarCSV()">📊 Exportar CSV</button>
+
       <button class="btn-silver btn-unified" onclick="document.getElementById('inputFile2').click()">📥 Importar CSV</button>
       <input id="inputFile2" class="hidden" type="file" onchange="importarCSV(event)" />
 
-      <!-- Fila 2 -->
       <button class="btn-gold btn-unified" onclick="dropboxUploadEncryptedBackup()">📤 Guardar copia en Dropbox</button>
       <button class="btn-silver btn-unified" onclick="dropboxDownloadAndRestore()">📥 Restaurar copia desde Dropbox</button>
 
-      <!-- Fila 3 (Reset) -->
       <button class="btn-unified btn-danger ie-span2" onclick="resetTotal()">⚠️ Reset</button>
     </div>
   </div>
 
-  <!-- Botón VOLVER fijo en la parte inferior -->
+  <!-- Botón VOLVER fijo en la parte inferior (mismo tamaño y estilo) -->
   <div id="ieFooter">
     <button id="ieVolver" class="btn-silver btn-unified">⬅ VOLVER</button>
   </div>
