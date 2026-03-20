@@ -12,7 +12,7 @@ if (window.__APP_LOADED__) {
     "Barco","Cajero","Casa","Comida","Comisiones","Comunidad","Copas","Efectivo","Electrónica","Extraescolar","Farmacia",
     "Filamento","Garaje","Gas","Gasolina","Herramientas","Ikastola","Impresora","Impuestos","Juguetes / Regalos",
     "Libros / Material escolar","Luz","Mantenimiento","Medicamentos","Parking","Peaje","Préstamo","Reforma","Ropa",
-    "Septiembre","Seguro","Suscripción","Suscripciones","Teléfono","Tren","Varios"
+    "Septiembre","Seguro","Suscripción","Suscripciones","Teléfono","Tren","Varios", "Decoracion", "Muebles"
   ];
   const catBase   = ["Casa","Caravana","Coche","Compras","Efectivo","Escolar","Garaje","Restaurante","Vacaciones"];
   const mesesLabel = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
