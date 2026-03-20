@@ -1,4 +1,4 @@
-// === main.js v21 — Indicador en topbar + Doble‑tap ON/OFF fiable (sin romper selects) + Popups “+ Añadir nuevo…” restaurados + G2 real + CASA centrada + Balance consistente ===
+// === main.js v21.1 — Hotfix: Botón “+” restaurado + Doble‑tap universal sin romper selects + Popups “+ Añadir nuevo…” estables + Indicador topbar + G2 real + CASA centrada + Balance consistente ===
 if (window.__APP_LOADED__) {
   // Evitar doble carga
 } else {
@@ -181,7 +181,7 @@ if (window.__APP_LOADED__) {
   }
 
   // ==========================
-  // INDICADOR VISUAL (topbar) + FULLSCREEN + DOBLE‑TAP (ON/OFF) + ENLACE GUARDAR
+  // INDICADOR (TOPBAR) + FULLSCREEN + DOBLE‑TAP ON/OFF
   // ==========================
   function ensureRotateIndicator(){
     const top = document.querySelector('.topbar'); 
@@ -209,19 +209,6 @@ if (window.__APP_LOADED__) {
     ind.style.boxShadow  = rotateReady ? '0 0 6px #22c55e' : 'none';
   }
 
-  function bindGuardarHandlers() {
-    const form = document.getElementById('form');
-    if (form && !form.__boundSubmit) {
-      form.addEventListener('submit', (e) => { e.preventDefault(); guardar(); });
-      form.__boundSubmit = true;
-    }
-    const btn = document.querySelector('#btnGuardar, #guardar, button[data-guardar]');
-    if (btn && !btn.__boundClick) {
-      btn.addEventListener('click', (e) => { e.preventDefault(); guardar(); });
-      btn.__boundClick = true;
-    }
-  }
-
   function toggleFullscreenUI() {
     fullscreenMode = !fullscreenMode;
     const filtros = document.querySelector('.filtros-wrapper');
@@ -232,7 +219,6 @@ if (window.__APP_LOADED__) {
     try { sessionStorage.setItem('ui_fullscreen', fullscreenMode ? '1' : '0'); } catch {}
   }
 
-  // === INTERRUPTOR DEL VOLTEADOR (ON/OFF con doble‑tap) ===
   function armRotateIfGraficosNow() {
     const modo = (document.getElementById("movimientos")?.dataset?.modo) || "lista";
     if (modo !== "graficos" && modo !== "graficos2") return;
@@ -252,85 +238,47 @@ if (window.__APP_LOADED__) {
     return (modo === 'graficos' || modo === 'graficos2');
   }
 
-  // === Doble‑tap SOLO en área de gráficos (#lista), sin interferir con selects ===
-  let __lastTapTs = 0;
-  const DOUBLE_TAP_MS = 280;
+  // === Doble‑tap UNIVERSAL a nivel documento (sin romper selects) ===
+  let __dt_last = 0;
+  const __DT_WIN = 280;
 
-  function isInteractiveForDoubleTap(el){
+  function __dt_isInteractive(el){
     if (!el) return false;
-    if (el.closest('.footer-controles')) return true;
-    if (el.closest('.footer-row')) return true;
     if (el.closest('#form')) return true;
     if (el.closest('.filtros-wrapper')) return true;
+    if (el.closest('.footer-controles')) return true;
+    if (el.closest('.footer-row')) return true;
     if (el.closest('button, a, select, option, input, textarea, label, [role="button"]')) return true;
     return false;
   }
-  function onGraphPointerUp(ev){
+
+  // Móvil → touchend
+  document.addEventListener('touchend', (ev) => {
     if (!isInGraficosMode()) return;
-    if (isInteractiveForDoubleTap(ev.target)) return;
-
+    if (__dt_isInteractive(ev.target)) return;
     const now = ev.timeStamp || Date.now();
-    const delta = now - __lastTapTs;
-
-    if (delta <= DOUBLE_TAP_MS) {
-      ev.preventDefault();
-      ev.stopPropagation();
+    if (now - __dt_last <= __DT_WIN) {
+      ev.preventDefault(); ev.stopPropagation();
       toggleFullscreenUI();
       armRotateIfGraficosNow();
-      __lastTapTs = 0;
+      __dt_last = 0;
     } else {
-      __lastTapTs = now;
+      __dt_last = now;
     }
-  }
-  function onGraphDblClick(ev){
+  }, { passive: false });
+
+  // Escritorio → dblclick
+  document.addEventListener('dblclick', (ev) => {
     if (!isInGraficosMode()) return;
-    if (isInteractiveForDoubleTap(ev.target)) return;
+    if (__dt_isInteractive(ev.target)) return;
     ev.preventDefault();
     toggleFullscreenUI();
     armRotateIfGraficosNow();
-  }
-  function bindGraphDoubleTapArea(){
-    const area = document.getElementById('lista');
-    if (!area) return;
-    if (!area.__dblBind) {
-      area.addEventListener('pointerup', onGraphPointerUp, { passive:false });
-      area.addEventListener('dblclick',  onGraphDblClick,  { passive:false });
-      area.__dblBind = true;
-    }
-  }
+  }, { passive: false });
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      ensureDefaultPinHash().catch(console.error);
-      updateDots();
-
-      // Restaurar fullscreen/rotate e indicador
-      try { const prevFS = sessionStorage.getItem('ui_fullscreen'); if (prevFS === '1') { fullscreenMode = true; toggleFullscreenUI(); } } catch {}
-      try { if (sessionStorage.getItem('rotate_ready') === '1') rotateReady = true; } catch {}
-      ensureRotateIndicator();
-      updateRotateIndicator();
-
-      // Evitar zoom triple‑tap y mejorar latencia
-      if (document.documentElement) document.documentElement.style.touchAction = 'manipulation';
-      if (document.body)           document.body.style.touchAction           = 'manipulation';
-
-      // Doble‑tap: SOLO en #lista (área de gráficos)
-      bindGraphDoubleTapArea();
-
-      bindGuardarHandlers();
-
-      // Botón VOLVER de Import/Export (si existe)
-      const ieVolver = document.getElementById('ieVolver');
-      if (ieVolver) ieVolver.onclick = () => setModo('lista');
-    });
-  } else {
-    bindGuardarHandlers();
-    ensureRotateIndicator();
-    updateRotateIndicator();
-    bindGraphDoubleTapArea();
-  }
-
-  // === Volteador de pantalla — redibuja en ambos sentidos sin apagar rotateReady ===
+  // ==========================
+  // VOLTEADOR — REDIBUJADO AL GIRAR (robusto)
+  // ==========================
   function handleRotationRedraw() {
     if (!rotateReady) return;
     const modo = (document.getElementById("movimientos")?.dataset?.modo) || "lista";
@@ -339,13 +287,11 @@ if (window.__APP_LOADED__) {
       mostrar();
     }
   }
-  // API moderna / compat / fallback robusto
   if (screen.orientation && screen.orientation.addEventListener) {
     screen.orientation.addEventListener("change", handleRotationRedraw);
   }
   window.addEventListener("orientationchange", handleRotationRedraw);
-
-  const redrawOnResizeDebounced = debounce(() => {
+  const __redrawOnResize = debounce(() => {
     if (!rotateReady) return;
     const modo = (document.getElementById("movimientos")?.dataset?.modo) || "lista";
     if (modo === "graficos" || modo === "graficos2") {
@@ -354,7 +300,7 @@ if (window.__APP_LOADED__) {
     }
   }, 120);
   window.addEventListener('resize', () => {
-    if (rotateReady) redrawOnResizeDebounced();
+    if (rotateReady) __redrawOnResize();
   });
 
   // ==========================
@@ -388,7 +334,6 @@ if (window.__APP_LOADED__) {
     const m = document.getElementById("movimientos");
     const from = m.dataset.modo || 'lista';
     if ((modo === 'graficos' || modo === 'graficos2') && from === 'lista') {
-      // Captura anclajes y referencia de balance
       captureFooterAnchors();
       captureBalanceRef();
     }
@@ -634,11 +579,10 @@ if (window.__APP_LOADED__) {
     if (filtros) filtros.style.display = fullscreenMode ? 'none' : '';
     if (footerB) footerB.style.display  = fullscreenMode ? 'none' : '';
 
-    // Filtros de datos
+    // Filtrado + orden
     const fsIds = ["filtroMes","filtroAño","filtroCat","filtroSub","filtroOri"];
     const fs = fsIds.map(id => { const el = document.getElementById(id); return el ? el.value : "TODOS"; });
 
-    // Filtrado + orden
     filtradosGlobal = (movimientos || [])
       .filter(m => {
         const d = (m.f || "").split("-");
@@ -665,7 +609,7 @@ if (window.__APP_LOADED__) {
     }
 
     // ====== Import/Export Overlay ======
-    if (impPage) impPage.classList.add('hidden'); // por defecto oculto
+    if (impPage) impPage.classList.add('hidden');
     if (modo === "importexport") {
       if (impPage) impPage.classList.remove('hidden');
       if (listaDiv) listaDiv.innerHTML = "";
@@ -717,9 +661,23 @@ if (window.__APP_LOADED__) {
         renderizarGraficos2();
       }
     } else {
-      // LISTA
-      if (btnLeft){ btnLeft.innerHTML = iconBars(); btnLeft.classList.add("plus-like"); btnLeft.onclick = () => { captureBalanceRef(); setModo("graficos"); }; }
-      if (btnCenter){ btnCenter.innerHTML = "+"; btnCenter.onclick = () => abrirFormulario(); }
+      // ===== LISTA (HOTFIX botón “+”) =====
+      if (btnLeft){
+        btnLeft.innerHTML = iconBars();
+        btnLeft.classList.add("plus-like");
+        btnLeft.onclick = () => { captureBalanceRef(); setModo("graficos"); };
+        btnLeft.style.pointerEvents = 'auto';
+      }
+
+      if (btnCenter){
+        btnCenter.innerHTML = "+";
+        btnCenter.style.pointerEvents = 'auto';
+        btnCenter.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          abrirFormulario();
+        };
+      }
 
       layoutFooterReset(btnLeft, btnCenter, btnRight);
       layoutBalanceResetUnified();
@@ -738,17 +696,17 @@ if (window.__APP_LOADED__) {
         const loader = document.getElementById("loader"); if (loader) loader.style.display = "none";
       }
 
+      const footerB2 = document.querySelector('.footer-controles'); 
+      if (footerB2) footerB2.style.pointerEvents = 'auto';
+
       captureBalanceRef();
     }
 
     ensureRotateIndicator(); updateRotateIndicator();
     ensureBackupIndicator(); updateBackupIndicator();
-
-    // MUY IMPORTANTE: el área de gráficos puede re‑crearse -> reenganchar doble‑tap
-    bindGraphDoubleTapArea();
   }
 
-  // Reajustes al cambiar tamaño: layout + balance unificado
+  // Reajustes al cambiar tamaño: layout + balance
   window.addEventListener('resize', debounce(function(){
     const movDiv = document.getElementById("movimientos");
     if (!movDiv) return; const modo = movDiv.dataset.modo || "lista";
@@ -1021,7 +979,7 @@ if (window.__APP_LOADED__) {
     };
   }
 
-  // (PATCH v21) — manejarNuevo robusto con fallback de prompt si dataset no llega
+  // manejarNuevo robusto (con fallback prompt)
   const manejarNuevo = (el, tipo) => {
     if (el.value !== "+") return;
 
@@ -1031,7 +989,7 @@ if (window.__APP_LOADED__) {
       n = (prompt(`Nueva ${label}:`) || '').trim();
     }
 
-    el.dataset.nuevoValor = ""; // limpiar
+    el.dataset.nuevoValor = "";
     if (!n) { el.value = ""; return; }
 
     const pretty = mostrarBonito(n.trim());
@@ -1061,7 +1019,6 @@ if (window.__APP_LOADED__) {
       llenar("subcategoria", subMaestra, [], pretty, { origenActual });
     }
 
-    // Reenganchar popups tras repintar selects
     setTimeout(bindNuevoHandlers, 0);
   };
 
@@ -1090,7 +1047,7 @@ if (window.__APP_LOADED__) {
       btnD.classList.add("hidden");
     }
 
-    // Enlazar selects "+ Añadir nuevo…"
+    // Enlazar popups "+ Añadir nuevo…"
     bindNuevoHandlers();
 
     const selOrigen = document.getElementById("origen");
@@ -1440,7 +1397,6 @@ if (window.__APP_LOADED__) {
           nuevos.push(mov);
         }
 
-        // Añadir a catExtra/subMaestra si no existían (canónico)
         const addIfNewCanon = (list, storeKey, value) => {
           const k = canonicalizeLabel(value);
           const exists = list.some(v => canonicalizeLabel(v) === k);
@@ -1463,8 +1419,8 @@ if (window.__APP_LOADED__) {
       } finally { e.target.value = ""; }
     };
 
-    reader.onerror = () => alert("No se pudo leer el archivo.");
-    reader.readAsText(file, 'UTF-8');
+  reader.onerror = () => alert("No se pudo leer el archivo.");
+  reader.readAsText(file, 'UTF-8');
   };
 
   // ==========================
@@ -1729,6 +1685,7 @@ if (window.__APP_LOADED__) {
       updateBackupIndicator?.();
       actualizarListas?.(); resetPagina?.(); mostrar?.();
       if (!silent) alert('Datos cargados desde Dropbox.');
+
     } catch (e) { /* log */ }
   }
   window.addEventListener('online', () => scheduleSync('online'));
