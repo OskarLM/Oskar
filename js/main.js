@@ -1,4 +1,4 @@
-// === main.js v21.2 — HOTFIXES: Botón “+” infalible + Doble‑tap universal en captura (sin romper selects) + Fallback orientación + Popups “+ Añadir nuevo…” estables + G2 real + CASA centrada + Balance consistente ===
+// === main.js v18 — G2 real (sin fantasma) + CASA centrada + Balance consistente + Doble‑tap ON/OFF + Import/Export desde Balance ===
 if (window.__APP_LOADED__) {
   // Evitar doble carga
 } else {
@@ -29,13 +29,13 @@ if (window.__APP_LOADED__) {
   let hideCasa = false;
   let fullscreenMode = false;
 
-  // Volteador (ON/OFF por doble‑tap)
+  // Volteador (ARMADO por doble‑tap ON/OFF)
   let rotateReady = false;
 
   // Offset de referencia del balance (medido en Movimientos)
   let balanceRightRef = null;
 
-  // Escape seguro para HTML
+  // Escape seguro para HTML (corregido)
   function esc(s){
     return (s ?? '')
       .toString()
@@ -181,32 +181,19 @@ if (window.__APP_LOADED__) {
   }
 
   // ==========================
-  // INDICADOR (TOPBAR) + FULLSCREEN + VOLTEADOR ON/OFF
+  // FULLSCREEN + DOBLE‑TAP (ON/OFF) + ENLACE GUARDAR
   // ==========================
-  function ensureRotateIndicator(){
-    const top = document.querySelector('.topbar'); 
-    if (!top) return;
-    let ind = document.getElementById('rotateIndicator');
-    if (!ind) {
-      ind = document.createElement('span');
-      ind.id = 'rotateIndicator';
-      ind.title = 'Volteador (doble‑tap en gráficos: ON/OFF)';
-      Object.assign(ind.style, {
-        display:'inline-block', width:'10px', height:'10px', borderRadius:'50%',
-        marginLeft:'8px', verticalAlign:'middle', background:'#999', cursor:'pointer'
-      });
-      ind.addEventListener('click', () => {
-        if (!isInGraficosMode()) { alert('Abre Gráficos y usa doble‑tap o el indicador para ON/OFF.'); return; }
-        armRotateIfGraficosNow();
-      });
-      top.appendChild(ind);
+  function bindGuardarHandlers() {
+    const form = document.getElementById('form');
+    if (form && !form.__boundSubmit) {
+      form.addEventListener('submit', (e) => { e.preventDefault(); guardar(); });
+      form.__boundSubmit = true;
     }
-  }
-  function updateRotateIndicator(){
-    const ind = document.getElementById('rotateIndicator'); 
-    if (!ind) return;
-    ind.style.background = rotateReady ? '#22c55e' : '#999';
-    ind.style.boxShadow  = rotateReady ? '0 0 6px #22c55e' : 'none';
+    const btn = document.querySelector('#btnGuardar, #guardar, button[data-guardar]');
+    if (btn && !btn.__boundClick) {
+      btn.addEventListener('click', (e) => { e.preventDefault(); guardar(); });
+      btn.__boundClick = true;
+    }
   }
 
   function toggleFullscreenUI() {
@@ -219,66 +206,73 @@ if (window.__APP_LOADED__) {
     try { sessionStorage.setItem('ui_fullscreen', fullscreenMode ? '1' : '0'); } catch {}
   }
 
+  // === INTERRUPTOR DEL VOLTEADOR (ON/OFF con doble‑tap) ===
   function armRotateIfGraficosNow() {
     const modo = (document.getElementById("movimientos")?.dataset?.modo) || "lista";
     if (modo !== "graficos" && modo !== "graficos2") return;
 
     if (rotateReady) {
+      // Estaba ON → lo apagamos
       rotateReady = false;
       try { sessionStorage.removeItem('rotate_ready'); } catch {}
-    } else {
-      rotateReady = true;
-      try { sessionStorage.setItem('rotate_ready', '1'); } catch {}
+      console.log("Volteador DESARMADO");
+      return;
     }
-    updateRotateIndicator();
-  }
-  function isInGraficosMode(){
-    const m = document.getElementById("movimientos");
-    const modo = m?.dataset?.modo || "lista";
-    return (modo === 'graficos' || modo === 'graficos2');
+    // Estaba OFF → lo encendemos
+    rotateReady = true;
+    try { sessionStorage.setItem('rotate_ready', '1'); } catch {}
+    console.log("Volteador ARMADO");
   }
 
-  // ==========================
-  // (HOTFIX 2) DOBLE‑TAP UNIVERSAL (CAPTURA) — sin interferir con selects/botones
-  // ==========================
-  let __dt_last_ts = 0;
-  const __DT_WIN = 300;
-  function __dt_isInteractive(el){
-    if (!el) return false;
-    if (el.closest('#form')) return true;
-    if (el.closest('.filtros-wrapper')) return true;
-    if (el.closest('.footer-controles')) return true;
-    if (el.closest('.footer-row')) return true;
-    if (el.closest('button, a, select, option, input, textarea, label, [role="button"]')) return true;
-    return false;
-  }
-  // MÓVIL: touchend
-  document.addEventListener('touchend', (ev) => {
-    if (!isInGraficosMode()) return;
-    if (__dt_isInteractive(ev.target)) return;
-    const now = ev.timeStamp || Date.now();
-    if (now - __dt_last_ts <= __DT_WIN) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      toggleFullscreenUI();
-      armRotateIfGraficosNow();
-      __dt_last_ts = 0;
-    } else {
-      __dt_last_ts = now;
-    }
-  }, { passive: false, capture: true });
-  // ESCRITORIO: dblclick
-  document.addEventListener('dblclick', (ev) => {
-    if (!isInGraficosMode()) return;
-    if (__dt_isInteractive(ev.target)) return;
-    ev.preventDefault();
-    toggleFullscreenUI();
-    armRotateIfGraficosNow();
-  }, { passive: false, capture: true });
+  // Doble‑tap / doble‑click en zonas no interactivas: fullscreen + interruptor volteador
+  let _lastTap = 0; 
+  const TAP_WINDOW = 250; // ms
+  const isInteractive = (el) => !!(el && el.closest('button, a, select, input, textarea, label, [role="button"], [tabindex]'));
 
-  // ==========================
-  // VOLTEADOR — REDIBUJADO AL GIRAR (robusto)
-  // ==========================
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      ensureDefaultPinHash().catch(console.error);
+      updateDots();
+      if (document.documentElement) document.documentElement.style.touchAction = 'manipulation';
+      if (document.body)           document.body.style.touchAction           = 'manipulation';
+
+      try { const prevFS = sessionStorage.getItem('ui_fullscreen'); if (prevFS === '1') { fullscreenMode = true; toggleFullscreenUI(); } } catch {}
+      // Restaurar estado armado del volteador si estaba guardado
+      try { if (sessionStorage.getItem('rotate_ready') === '1') rotateReady = true; } catch {}
+
+      window.addEventListener('touchstart', (ev) => {
+        const t = Date.now();
+        const target = ev.target;
+        if (isInteractive(target)) return;
+        if (t - _lastTap <= TAP_WINDOW) {
+          ev.preventDefault();
+          toggleFullscreenUI();
+          armRotateIfGraficosNow(); // ON/OFF
+          _lastTap = 0;
+        } else {
+          _lastTap = t;
+        }
+      }, { passive: false });
+
+      window.addEventListener('dblclick', (ev) => {
+        const target = ev.target;
+        if (isInteractive(target)) return;
+        ev.preventDefault();
+        toggleFullscreenUI();
+        armRotateIfGraficosNow(); // ON/OFF
+      }, { passive: false });
+
+      bindGuardarHandlers();
+
+      // Botón VOLVER de Import/Export (si existe)
+      const ieVolver = document.getElementById('ieVolver');
+      if (ieVolver) ieVolver.onclick = () => setModo('lista');
+    });
+  } else {
+    bindGuardarHandlers();
+  }
+
+  // === Volteador de pantalla REAL — redibuja en ambos sentidos y NO apaga rotateReady ===
   function handleRotationRedraw() {
     if (!rotateReady) return;
     const modo = (document.getElementById("movimientos")?.dataset?.modo) || "lista";
@@ -287,62 +281,25 @@ if (window.__APP_LOADED__) {
       mostrar();
     }
   }
-  // Moderno
+
+  // API moderna (Android/Chrome/PWA)
   if (screen.orientation && screen.orientation.addEventListener) {
     screen.orientation.addEventListener("change", handleRotationRedraw);
   }
   // Compatibilidad
   window.addEventListener("orientationchange", handleRotationRedraw);
-  // (HOTFIX 3) Fallback adicional con matchMedia
-  try {
-    const mql = window.matchMedia('(orientation: landscape)');
-    if (mql && mql.addEventListener) {
-      mql.addEventListener('change', () => handleRotationRedraw());
-    } else if (mql && mql.addListener) {
-      mql.addListener(() => handleRotationRedraw());
-    }
-  } catch {}
-  // Resize debounced
-  const __redrawOnResize = debounce(() => {
+  // Fallback universal (resize con detección real portrait<->landscape)
+  let _lastIsLandscape = null;
+  window.addEventListener("resize", () => {
     if (!rotateReady) return;
-    const modo = (document.getElementById("movimientos")?.dataset?.modo) || "lista";
-    if (modo === "graficos" || modo === "graficos2") {
-      try { captureFooterAnchors(); } catch {}
-      mostrar();
+    const w = window.innerWidth, h = window.innerHeight;
+    const isLandscape = w > h;
+    if (_lastIsLandscape === null) { _lastIsLandscape = isLandscape; return; }
+    if (isLandscape !== _lastIsLandscape) {
+      _lastIsLandscape = isLandscape;
+      handleRotationRedraw();
     }
-  }, 120);
-  window.addEventListener('resize', () => {
-    if (rotateReady) __redrawOnResize();
-  }, { passive: true });
-
-  // ==========================
-  // (HOTFIX 1) BOTÓN “+” INFALIBLE (captura + estilo de seguridad)
-  // ==========================
-  document.addEventListener('click', function(e){
-    try {
-      const btns = document.querySelectorAll('.footer-row .plus');
-      const center = btns && btns[1]; // 2º botón = central
-      if (!center) return;
-      if (e.target === center || center.contains(e.target)) {
-        e.preventDefault();
-        e.stopPropagation();
-        abrirFormulario();
-      }
-    } catch {}
-  }, true); // CAPTURE
-  (function(){
-    let s = document.getElementById('hotfix-style');
-    if (!s) {
-      s = document.createElement('style');
-      s.id = 'hotfix-style';
-      s.textContent = `
-        .footer-controles { pointer-events: auto !important; z-index: 2147483647 !important; }
-        .footer-row .plus { pointer-events: auto !important; }
-        .premium-overlay.hidden, .nomina-overlay.hidden { pointer-events: none !important; }
-      `;
-      document.head.appendChild(s);
-    }
-  })();
+  });
 
   // ==========================
   // ICONOS SVG
@@ -375,6 +332,7 @@ if (window.__APP_LOADED__) {
     const m = document.getElementById("movimientos");
     const from = m.dataset.modo || 'lista';
     if ((modo === 'graficos' || modo === 'graficos2') && from === 'lista') {
+      // Captura anclajes (left + center) y referencia de balance
       captureFooterAnchors();
       captureBalanceRef();
     }
@@ -415,10 +373,12 @@ if (window.__APP_LOADED__) {
     const fr = document.querySelector('.footer-row');
     if (!fr) return { btnLeft:null, btnCenter:null, btnRight:null };
 
+    // Tomamos los dos plus del HTML (left + center)
     const buttons = Array.from(fr.querySelectorAll('.plus')).slice(0, 2);
     let btnLeft   = buttons[0] || null;
     let btnCenter = buttons[1] || null;
 
+    // Creamos botón derecho real SOLO en gráficos
     const modo = document.getElementById("movimientos")?.dataset?.modo || 'lista';
     let btnRight = document.getElementById('btnRightReal');
 
@@ -533,6 +493,7 @@ if (window.__APP_LOADED__) {
       if (!footerRow || !balanceEl) return;
       const contRect = footerRow.getBoundingClientRect();
       const balRect  = balanceEl.getBoundingClientRect();
+      // Distancia desde el borde derecho del footer al borde derecho del balance
       balanceRightRef = Math.max(0, Math.round(contRect.right - balRect.right));
     } catch { /* noop */ }
   }
@@ -544,6 +505,7 @@ if (window.__APP_LOADED__) {
 
     if (getComputedStyle(footerRow).position === 'static') footerRow.style.position = 'relative';
 
+    // Si no tenemos referencia aún, usa padding-right del footer como aproximación natural
     let rightOffset = balanceRightRef;
     if (rightOffset == null) {
       const footer = document.querySelector('.footer-controles');
@@ -567,43 +529,6 @@ if (window.__APP_LOADED__) {
   }
 
   // ==========================
-  // POPUPS “+ Añadir nuevo…” — ENLACE FIABLE A SELECTS
-  // ==========================
-  function bindNuevoHandlers() {
-    const selCat = document.getElementById('categoria');
-    const selSub = document.getElementById('subcategoria');
-
-    if (selCat && !selCat.__nuevoBound) {
-      selCat.addEventListener('change', (e) => {
-        if (e.target.value === '+') {
-          const val = (prompt('Nueva CATEGORÍA:') || '').trim();
-          if (val) {
-            e.target.dataset.nuevoValor = val;
-            manejarNuevo(e.target, 'categoria');
-          } else {
-            e.target.value = '';
-          }
-        }
-      });
-      selCat.__nuevoBound = true;
-    }
-    if (selSub && !selSub.__nuevoBound) {
-      selSub.addEventListener('change', (e) => {
-        if (e.target.value === '+') {
-          const val = (prompt('Nueva SUBCATEGORÍA:') || '').trim();
-          if (val) {
-            e.target.dataset.nuevoValor = val;
-            manejarNuevo(e.target, 'subcategoria');
-          } else {
-            e.target.value = '';
-          }
-        }
-      });
-      selSub.__nuevoBound = true;
-    }
-  }
-
-  // ==========================
   // MOSTRAR (LISTA / G1 / G2 / IMPORTEXPORT)
   // ==========================
   function mostrar() {
@@ -622,6 +547,7 @@ if (window.__APP_LOADED__) {
     const fsIds = ["filtroMes","filtroAño","filtroCat","filtroSub","filtroOri"];
     const fs = fsIds.map(id => { const el = document.getElementById(id); return el ? el.value : "TODOS"; });
 
+    // Filtrado + orden
     filtradosGlobal = (movimientos || [])
       .filter(m => {
         const d = (m.f || "").split("-");
@@ -648,11 +574,10 @@ if (window.__APP_LOADED__) {
     }
 
     // ====== Import/Export Overlay ======
-    if (impPage) impPage.classList.add('hidden');
+    if (impPage) impPage.classList.add('hidden'); // por defecto oculto
     if (modo === "importexport") {
       if (impPage) impPage.classList.remove('hidden');
       if (listaDiv) listaDiv.innerHTML = "";
-      ensureRotateIndicator(); updateRotateIndicator();
       return;
     }
 
@@ -700,23 +625,9 @@ if (window.__APP_LOADED__) {
         renderizarGraficos2();
       }
     } else {
-      // ===== LISTA (HOTFIX botón “+”) =====
-      if (btnLeft){
-        btnLeft.innerHTML = iconBars();
-        btnLeft.classList.add("plus-like");
-        btnLeft.onclick = () => { captureBalanceRef(); setModo("graficos"); };
-        btnLeft.style.pointerEvents = 'auto';
-      }
-
-      if (btnCenter){
-        btnCenter.innerHTML = "+";
-        btnCenter.style.pointerEvents = 'auto';
-        btnCenter.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          abrirFormulario();
-        };
-      }
+      // LISTA
+      if (btnLeft){ btnLeft.innerHTML = iconBars(); btnLeft.classList.add("plus-like"); btnLeft.onclick = () => { captureBalanceRef(); setModo("graficos"); }; }
+      if (btnCenter){ btnCenter.innerHTML = "+"; btnCenter.onclick = () => abrirFormulario(); }
 
       layoutFooterReset(btnLeft, btnCenter, btnRight);
       layoutBalanceResetUnified();
@@ -735,17 +646,14 @@ if (window.__APP_LOADED__) {
         const loader = document.getElementById("loader"); if (loader) loader.style.display = "none";
       }
 
-      const footerB2 = document.querySelector('.footer-controles'); 
-      if (footerB2) footerB2.style.pointerEvents = 'auto';
-
+      // Refrescar referencia del balance por si el CSS cambió
       captureBalanceRef();
     }
 
-    ensureRotateIndicator(); updateRotateIndicator();
     ensureBackupIndicator(); updateBackupIndicator();
   }
 
-  // Reajustes al cambiar tamaño: layout + balance
+  // Reajustes al cambiar tamaño: re‑aplica layouts en gráficos (y balance unificado)
   window.addEventListener('resize', debounce(function(){
     const movDiv = document.getElementById("movimientos");
     if (!movDiv) return; const modo = movDiv.dataset.modo || "lista";
@@ -880,6 +788,7 @@ if (window.__APP_LOADED__) {
     const sumaMes = new Map();
     for (let mov of base) {
       const k = (mov.f || "").slice(0,7);
+      if (!meses.some(x => x.key === k)) continue;
       sumaMes.set(k, (sumaMes.get(k) || 0) + (Number(mov.imp) || 0));
     }
 
@@ -948,7 +857,7 @@ if (window.__APP_LOADED__) {
   }
 
   // ==========================
-  // FORMULARIO / CRUD
+  // FORMULARIO / CRUD (igual que estabas)
   // ==========================
   function onOrigenChange(origenValor, { preCat = "", preSub = "", esEdicion = false } = {}) {
     const selCat = document.getElementById("categoria");
@@ -971,9 +880,6 @@ if (window.__APP_LOADED__) {
       llenar("categoria", catBase, catExtra, preCat, { origenActual: origenValor });
       llenar("subcategoria", subMaestra, [], preSub, { origenActual: origenValor });
     }
-
-    // Reenganchar popups "+ Añadir nuevo…"
-    setTimeout(bindNuevoHandlers, 0);
   }
 
   function lanzarPopupNomina({ preCat = "", preSub = "" } = {}) {
@@ -1018,47 +924,30 @@ if (window.__APP_LOADED__) {
     };
   }
 
-  // manejarNuevo robusto (con fallback prompt)
-  const manejarNuevo = (el, tipo) => {
-    if (el.value !== "+") return;
+  const llenar = (id, base, extra, pre = "", opts = {}) => {
+    const s = document.getElementById(id);
+    const origenActual = opts.origenActual || "";
+    if (!s) return;
 
-    let n = el.dataset.nuevoValor || "";
-    if (!n) {
-      const label = (tipo === 'categoria') ? 'CATEGORÍA' : 'SUBCATEGORÍA';
-      n = (prompt(`Nueva ${label}:`) || '').trim();
+    s.innerHTML = `<option value="" disabled ${pre === "" ? 'selected' : ''}>Seleccionar...</option>`;
+    let values = [...new Set([...base, ...extra])];
+
+    if (id === "categoria") {
+      const ocultarNominaCats = origenActual !== "Nómina";
+      if (ocultarNominaCats) values = values.filter(v => !NOMINA_CATS.includes(v));
+    }
+    if (id === "subcategoria") {
+      const ocultarMeses = origenActual !== "Nómina";
+      if (ocultarMeses) values = values.filter(v => !NOMINA_SUBS.includes(v));
     }
 
-    el.dataset.nuevoValor = "";
-    if (!n) { el.value = ""; return; }
+    values.sort((a,b)=>a.localeCompare(b,'es')).forEach(v=>{
+      s.innerHTML += `<option value="${v}" ${v === pre ? 'selected' : ''}>${v}</option>`;
+    });
 
-    const pretty = mostrarBonito(n.trim());
-    const keyNew = canonicalizeLabel(pretty);
-
-    if (tipo === "categoria") {
-      const catIdx = buildCanonIndex(catBase, catExtra);
-      if (NOMINA_CATS.some(x => canonicalizeLabel(x) === keyNew)) {
-        alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina'.");
-        el.value = ""; return;
-      }
-      if (!catIdx.has(keyNew)) {
-        catExtra.push(pretty);
-        localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
-        scheduleSync('listas');
-      }
-      const origenActual = (document.getElementById("origen")||{}).value || "";
-      llenar("categoria", catBase, catExtra, pretty, { origenActual });
-    } else {
-      const subIdx = buildCanonIndex(subMaestra, []);
-      if (!subIdx.has(keyNew)) {
-        subMaestra.push(pretty);
-        localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
-        scheduleSync('listas');
-      }
-      const origenActual = (document.getElementById("origen")||{}).value || "";
-      llenar("subcategoria", subMaestra, [], pretty, { origenActual });
-    }
-
-    setTimeout(bindNuevoHandlers, 0);
+    if (pre && !values.includes(pre)) s.innerHTML += `<option value="${pre}" selected hidden>${pre}</option>`;
+    if (id !== "origen") s.innerHTML += `<option value="+">+ Añadir nuevo...</option>`;
+    if (pre) s.value = pre;
   };
 
   const abrirFormulario = (id = null) => {
@@ -1085,9 +974,6 @@ if (window.__APP_LOADED__) {
       onOrigenChange(origenInicial);
       btnD.classList.add("hidden");
     }
-
-    // Enlazar popups "+ Añadir nuevo…"
-    bindNuevoHandlers();
 
     const selOrigen = document.getElementById("origen");
     selOrigen.onchange = () => onOrigenChange(selOrigen.value);
@@ -1188,6 +1074,39 @@ if (window.__APP_LOADED__) {
     document.getElementById("form").classList.add("hidden");
     document.getElementById("movimientos").classList.remove("hidden");
     actualizarListas(); resetPagina(); mostrar();
+  };
+
+  const manejarNuevo = (el, tipo) => {
+    if (el.value !== "+") return;
+    let n = el.dataset.nuevoValor || "";
+    el.dataset.nuevoValor = "";
+    if (!n) { el.value = ""; return; }
+    const pretty = mostrarBonito(n.trim());
+    const keyNew = canonicalizeLabel(pretty);
+
+    if (tipo === "categoria") {
+      const catIdx = buildCanonIndex(catBase, catExtra);
+      if (NOMINA_CATS.some(x => canonicalizeLabel(x) === keyNew)) {
+        alert("No puedes crear manualmente 'Oskar' ni 'Josune'. Selecciona 'Nómina'.");
+        el.value = ""; return;
+      }
+      if (!catIdx.has(keyNew)) {
+        catExtra.push(pretty);
+        localStorage.setItem('categoriaExtra', JSON.stringify(catExtra));
+        scheduleSync('listas');
+      }
+      const origenActual = (document.getElementById("origen")||{}).value || "";
+      llenar("categoria", catBase, catExtra, pretty, { origenActual });
+    } else {
+      const subIdx = buildCanonIndex(subMaestra, []);
+      if (!subIdx.has(keyNew)) {
+        subMaestra.push(pretty);
+        localStorage.setItem('subMaestra_v2', JSON.stringify(subMaestra));
+        scheduleSync('listas');
+      }
+      const origenActual = (document.getElementById("origen")||{}).value || "";
+      llenar("subcategoria", subMaestra, [], pretty, { origenActual });
+    }
   };
 
   const borrarElemento = (tipo) => {
@@ -1323,7 +1242,7 @@ if (window.__APP_LOADED__) {
   }, { passive: true });
 
   // ==========================
-  // CSV / BACKUPS / SW / DROPBOX / AUTOSYNC
+  // CSV / BACKUPS / SW / DROPBOX / AUTOSYNC — Íntegro
   // ==========================
   const exportarCSV = () => {
     if (!movimientos || movimientos.length === 0) { alert("No hay datos para exportar."); return; }
@@ -1408,8 +1327,8 @@ if (window.__APP_LOADED__) {
 
         const catIndexCanon = buildCanonIndex([...catBase, ...catExtra, ...NOMINA_CATS], []);
         const subIndexCanon = buildCanonIndex([...subMaestra, ...NOMINA_SUBS], []);
-
         const nuevos = [];
+
         for (let i = 1; i < lines.length; i++) {
           const arr = parseLine(lines[i]);
           if (arr.every(v => (v||'').trim()==='')) continue;
@@ -1441,6 +1360,7 @@ if (window.__APP_LOADED__) {
           const exists = list.some(v => canonicalizeLabel(v) === k);
           if (!exists) { list.push(value); localStorage.setItem(storeKey, JSON.stringify(list)); }
         };
+
         nuevos.forEach(m=>{
           if (![...catBase, ...catExtra, ...NOMINA_CATS].some(v => canonicalizeLabel(v) === canonicalizeLabel(m.c)))
             addIfNewCanon(catExtra, 'categoriaExtra', m.c);
@@ -1455,7 +1375,7 @@ if (window.__APP_LOADED__) {
         alert(`Importación completa: ${nuevos.length} registros añadidos.`);
       } catch (err) {
         console.error(err); alert("Error al importar el CSV. Revisa el formato.");
-      }
+      } finally { e.target.value = ""; }
     };
 
     reader.onerror = () => alert("No se pudo leer el archivo.");
